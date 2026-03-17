@@ -25,9 +25,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const clientToken = await generateClientTokenFromReadWriteToken({
       token: process.env.BLOB_READ_WRITE_TOKEN!,
       pathname,
-      onUploadCompleted: async ({ blob }) => {
-        console.log("Blob upload completed:", blob.url);
-      },
       allowedContentTypes: ["video/mp4", "image/jpeg"],
       maximumSizeInBytes: 200 * 1024 * 1024, // 200 MB
     });
