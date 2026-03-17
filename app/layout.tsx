@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import SnoozeButton from "@/components/SnoozeButton";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -20,6 +21,9 @@ export default function RootLayout({
         <header className="border-b border-gray-800 px-4 py-3 flex items-center gap-3">
           <span className="text-xl">🦎</span>
           <h1 className="font-semibold text-lg tracking-tight">Gecko Cam</h1>
+          <div className="ml-auto">
+            <SnoozeButton />
+          </div>
         </header>
         <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
       </body>

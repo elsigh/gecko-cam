@@ -24,6 +24,7 @@ from picamera2 import Picamera2
 from picamera2.encoders import H264Encoder
 from picamera2.outputs import CircularOutput, FfmpegOutput
 
+import requests
 from upload_event import upload_event
 
 # ── Configuration ──────────────────────────────────────────────────────────────
@@ -45,6 +46,19 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("gecko_cam")
+
+
+def _is_armed() -> bool:
+    """Check with Vercel whether motion capture is currently armed."""
+    vercel_url = os.environ.get("VERCEL_APP_URL", "").rstrip("/")
+    if not vercel_url:
+        return True  # no URL configured, assume armed
+    try:
+        resp = requests.get(f"{vercel_url}/api/armed", timeout=5)
+        return resp.json().get("armed", True)
+    except Exception as exc:
+        log.warning("Could not reach /api/armed (%s) — assuming armed.", exc)
+        return True
 
 
 def ensure_dirs() -> None:
@@ -108,6 +122,13 @@ def run() -> None:
                 continue
 
             if motion_score > MOTION_THRESHOLD and motion_cooldown <= 0 and not capturing:
+                if not _is_armed():
+                    log.info("Motion detected (score=%.0f) but snoozed — skipping.", motion_score)
+                    motion_cooldown = COOLDOWN_SECONDS
+                    motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
                 clip_path = CLIPS_DIR / f"{uuid4()}.mp4"
                 log.info(
                     "Motion detected (score=%.0f) → capturing %s",

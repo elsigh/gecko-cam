@@ -70,3 +70,21 @@ export async function getEvent(id: string): Promise<GeckoEvent | null> {
   if (!result.exists || !result.value) return null;
   return (await result.value) as GeckoEvent;
 }
+
+// ── Snooze ────────────────────────────────────────────────────────────────────
+
+const SNOOZE_KEY = "system/snooze_until";
+
+export async function setSnooze(untilMs: number): Promise<void> {
+  await kv.set(SNOOZE_KEY, untilMs);
+}
+
+export async function clearSnooze(): Promise<void> {
+  await kv.delete(SNOOZE_KEY);
+}
+
+export async function getSnoozeUntil(): Promise<number | null> {
+  const result = await kv.get(SNOOZE_KEY);
+  if (!result.exists || !result.value) return null;
+  return (await result.value) as number;
+}
