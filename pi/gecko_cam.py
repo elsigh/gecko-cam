@@ -31,8 +31,9 @@ HLS_DIR = Path("/tmp/hls")
 CLIPS_DIR = Path("/tmp/clips")
 HLS_SEGMENT_TIME = 2         # seconds per HLS segment
 HLS_LIST_SIZE = 10           # segments kept in playlist
-MOTION_THRESHOLD = 3000      # sum of contour areas (pixels²)
-COOLDOWN_SECONDS = 30        # seconds between event captures
+MOTION_THRESHOLD = 15000     # sum of contour areas (pixels²) — tune to taste
+COOLDOWN_SECONDS = 60        # seconds between event captures
+WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
 POST_MOTION_SECONDS = 10     # seconds to record after trigger
 RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
@@ -79,6 +80,7 @@ def run() -> None:
     bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
     motion_cooldown = 0.0
     capturing = False
+    warmup_remaining = WARMUP_FRAMES
 
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
@@ -97,6 +99,12 @@ def run() -> None:
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
             motion_score = sum(cv2.contourArea(c) for c in contours)
+
+            if warmup_remaining > 0:
+                warmup_remaining -= 1
+                motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                time.sleep(POLL_INTERVAL)
+                continue
 
             if motion_score > MOTION_THRESHOLD and motion_cooldown <= 0 and not capturing:
                 clip_path = CLIPS_DIR / f"{uuid4()}.mp4"
