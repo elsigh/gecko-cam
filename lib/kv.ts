@@ -1,61 +1,72 @@
-import { kv } from "@vercel/kv";
+import { createKV } from "@vercel/kv2";
 import type { GeckoEvent } from "./types";
 
-const EVENTS_ZSET = "gecko:events";
-const EVENT_KEY = (id: string) => `gecko:event:${id}`;
+// KV2 uses BLOB_READ_WRITE_TOKEN automatically — no separate KV infrastructure needed.
+const kv = createKV({ prefix: "gecko-cam/" });
+
 const MAX_EVENTS = 200;
 const PAGE_SIZE = 12;
 
+const eventKey = (id: string) => `events/${id}`;
+
 export async function saveEvent(event: GeckoEvent): Promise<void> {
-  const pipeline = kv.pipeline();
-  pipeline.hset(EVENT_KEY(event.id), event);
-  pipeline.zadd(EVENTS_ZSET, { score: event.timestamp, member: event.id });
-  // Enforce rolling cap — remove oldest beyond MAX_EVENTS
-  pipeline.zremrangebyrank(EVENTS_ZSET, 0, -(MAX_EVENTS + 1));
-  await pipeline.exec();
+  await kv.set(eventKey(event.id), event);
+
+  // Enforce rolling cap — fetch all keys, sort by timestamp, delete oldest beyond MAX_EVENTS
+  const { keys } = await kv.keys("events/").page(MAX_EVENTS + 50, undefined);
+  if (keys.length > MAX_EVENTS) {
+    // Fetch timestamps for all events to find oldest
+    const results = await kv.getMany(keys);
+    const entries: { key: string; timestamp: number }[] = [];
+    for (const [key, entry] of results) {
+      const val = (await entry.value) as GeckoEvent | undefined;
+      if (val) entries.push({ key, timestamp: val.timestamp });
+    }
+    // Sort newest first, delete beyond cap
+    entries.sort((a, b) => b.timestamp - a.timestamp);
+    const toDelete = entries.slice(MAX_EVENTS).map((e) => e.key);
+    await Promise.all(toDelete.map((k) => kv.delete(k)));
+  }
 }
 
 export async function listEvents(
   cursor?: string
 ): Promise<{ events: GeckoEvent[]; nextCursor: string | null }> {
-  // cursor encodes the max score (timestamp) to paginate backwards (newest first)
-  const maxScore = cursor ? Number(cursor) - 1 : "+inf";
+  // Fetch a page of keys; over-fetch to allow in-memory sort + pagination
+  // Since max events = 200, we can fetch all and sort for correctness
+  const { keys, cursor: nextRawCursor } = await kv
+    .keys("events/")
+    .page(MAX_EVENTS, cursor);
 
-  const ids: string[] = await kv.zrangebyscore(
-    EVENTS_ZSET,
-    "-inf",
-    maxScore,
-    { rev: true, limit: { offset: 0, count: PAGE_SIZE + 1 } }
-  );
-
-  const hasMore = ids.length > PAGE_SIZE;
-  const pageIds = ids.slice(0, PAGE_SIZE);
-
-  if (pageIds.length === 0) {
+  if (keys.length === 0) {
     return { events: [], nextCursor: null };
   }
 
-  const events = await Promise.all(
-    pageIds.map((id) => kv.hgetall<GeckoEvent>(EVENT_KEY(id)))
-  );
-
-  const validEvents = events.filter((e): e is GeckoEvent => e !== null);
-
-  let nextCursor: string | null = null;
-  if (hasMore && validEvents.length > 0) {
-    nextCursor = String(validEvents[validEvents.length - 1].timestamp);
+  const results = await kv.getMany(keys);
+  const events: GeckoEvent[] = [];
+  for (const [, entry] of results) {
+    const val = (await entry.value) as GeckoEvent | undefined;
+    if (val) events.push(val);
   }
 
-  return { events: validEvents, nextCursor };
+  // Sort newest first
+  events.sort((a, b) => b.timestamp - a.timestamp);
+
+  const page = events.slice(0, PAGE_SIZE);
+  const hasMore = events.length > PAGE_SIZE || !!nextRawCursor;
+
+  return {
+    events: page,
+    nextCursor: hasMore ? (nextRawCursor ?? String(page[page.length - 1]?.timestamp)) : null,
+  };
 }
 
 export async function deleteEvent(id: string): Promise<void> {
-  const pipeline = kv.pipeline();
-  pipeline.del(EVENT_KEY(id));
-  pipeline.zrem(EVENTS_ZSET, id);
-  await pipeline.exec();
+  await kv.delete(eventKey(id));
 }
 
 export async function getEvent(id: string): Promise<GeckoEvent | null> {
-  return kv.hgetall<GeckoEvent>(EVENT_KEY(id));
+  const result = await kv.get(eventKey(id));
+  if (!result.exists || !result.value) return null;
+  return (await result.value) as GeckoEvent;
 }
