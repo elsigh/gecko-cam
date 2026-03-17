@@ -55,7 +55,8 @@ def ensure_dirs() -> None:
 def run() -> None:
     ensure_dirs()
 
-    picam2 = Picamera2()
+    tuning = Picamera2.load_tuning_file("imx708_wide_noir.json")
+    picam2 = Picamera2(tuning=tuning)
     config = picam2.create_video_configuration(
         main={"size": (1280, 720), "format": "RGB888"},
         lores={"size": (320, 240), "format": "YUV420"},
