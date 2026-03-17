@@ -1,0 +1,37 @@
+middleware.ts
+  015458d1443a0d5a 3
+components/SnoozeButton.tsx
+  015458d1443a0d5a 1-139
+lib/kv.ts
+  015458d1443a0d5a 73-90
+app/api/armed/route.ts
+  015458d1443a0d5a 1-18
+pi/gecko_cam.py
+  015458d1443a0d5a 27,51-63,125-131
+app/api/snooze/route.ts
+  015458d1443a0d5a 1-29
+lib/auth.ts
+  015458d1443a0d5a 2,15-23
+app/layout.tsx
+  015458d1443a0d5a 3,24-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "389cf89133a3ccf31539929c3539dede6b8cff15",
+  "prompts": {
+    "015458d1443a0d5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aedec823-af3d-431f-bc00-71ce7248e9da",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 242,
+      "total_deletions": 2,
+      "accepted_lines": 241,
+      "overriden_lines": 0
+    }
+  }
+}
