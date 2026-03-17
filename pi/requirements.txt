@@ -1,0 +1,4 @@
+requests>=2.31.0
+# picamera2 and opencv-python are installed via apt on Raspberry Pi OS:
+#   sudo apt install python3-picamera2 python3-opencv
+# Do NOT pip install them — they require system libraries.

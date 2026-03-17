@@ -1,0 +1,18 @@
+[Unit]
+Description=Gecko Cam — live HLS stream + motion event capture
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/gecko-cam/pi
+ExecStart=/usr/bin/python3 /home/pi/gecko-cam/pi/gecko_cam.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
