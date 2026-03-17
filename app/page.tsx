@@ -3,13 +3,14 @@ import LiveStream from "@/components/LiveStream";
 import StreamStatus from "@/components/StreamStatus";
 import EventCard from "@/components/EventCard";
 import { listEvents } from "@/lib/kv";
+import type { GeckoEvent } from "@/lib/types";
 
 export const revalidate = 30;
 
 export default async function HomePage() {
   const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL ?? "";
 
-  let recentEvents = [];
+  let recentEvents: GeckoEvent[] = [];
   try {
     const result = await listEvents();
     recentEvents = result.events.slice(0, 6);
