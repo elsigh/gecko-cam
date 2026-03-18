@@ -16,8 +16,8 @@ function getStoreBaseUrl(): string {
 async function kvGet<T>(key: string): Promise<T | null> {
   try {
     const url = `${getStoreBaseUrl()}/${DATA_PREFIX}/${key}`;
-    // cache=0 bypasses Vercel's CDN so we always get the latest version
-    const res = await fetch(`${url}?cache=0`, { cache: "no-store" });
+    // Unique t= param busts CDN cache so we always get the latest blob version
+    const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
