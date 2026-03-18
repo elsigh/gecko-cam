@@ -15,6 +15,7 @@ export default function EventsPage() {
   // Selection state
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const loadMore = useCallback(async (nextCursor?: string | null) => {
@@ -59,12 +60,25 @@ export default function EventsPage() {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }
 
-  function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  function toggleSelect(id: string, shiftKey: boolean) {
+    const index = events.findIndex((e) => e.id === id);
+    if (shiftKey && lastClickedIndex !== null) {
+      // Range-select everything between last click and this click
+      const lo = Math.min(lastClickedIndex, index);
+      const hi = Math.max(lastClickedIndex, index);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (let i = lo; i <= hi; i++) next.add(events[i].id);
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+      });
+    }
+    setLastClickedIndex(index);
   }
 
   function selectAll() {
@@ -82,16 +96,21 @@ export default function EventsPage() {
 
     setDeleting(true);
     const ids = [...selected];
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`/api/events/${id}`, { method: "DELETE", credentials: "include" })
-      )
-    );
-
-    const deleted = ids.filter((_, i) => results[i].status === "fulfilled" &&
-      (results[i] as PromiseFulfilledResult<Response>).value.ok);
-
-    setEvents((prev) => prev.filter((e) => !deleted.includes(e.id)));
+    try {
+      const res = await fetch("/api/events", {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (res.ok) {
+        setEvents((prev) => prev.filter((e) => !ids.includes(e.id)));
+      } else {
+        alert(res.status === 401 ? "Not authorized." : "Failed to delete events.");
+      }
+    } catch {
+      alert("Network error.");
+    }
     setDeleting(false);
     exitSelectMode();
   }
