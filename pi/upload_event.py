@@ -18,6 +18,8 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+CLIP_FPS = 30  # must match gecko_cam.py FPS
+
 import requests
 
 log = logging.getLogger("upload_event")
@@ -71,21 +73,44 @@ def _upload_to_blob(file_path: str, pathname: str, content_type: str) -> str:
     return resp.json()["url"]
 
 
+def _wrap_h264_in_mp4(clip_path: str) -> None:
+    """Wrap raw H264 stream (from CircularOutput) in an MP4 container in-place."""
+    temp_path = clip_path + ".tmp.mp4"
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-f", "h264",
+                "-framerate", str(CLIP_FPS),
+                "-i", clip_path,
+                "-c:v", "copy",
+                temp_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        os.replace(temp_path, clip_path)
+    except Exception:
+        Path(temp_path).unlink(missing_ok=True)
+        raise
+
+
 def _extract_thumbnail(clip_path: str) -> str:
     """Extract the first frame of the clip as a JPEG, return the path."""
     thumb_path = clip_path.replace(".mp4", "_thumb.jpg")
-    subprocess.run(
+    result = subprocess.run(
         [
             "ffmpeg", "-y",
-            "-ss", "0",
             "-i", clip_path,
             "-vframes", "1",
             "-q:v", "3",
             thumb_path,
         ],
-        check=True,
         capture_output=True,
     )
+    if result.returncode != 0:
+        log.error("ffmpeg thumbnail failed (exit %d): %s", result.returncode, result.stderr.decode())
+        result.check_returncode()
     return thumb_path
 
 
@@ -114,6 +139,10 @@ def upload_event(clip_path: str, motion_score: float) -> None:
 
     thumb_path: str | None = None
     try:
+        # CircularOutput writes raw H264 — wrap in MP4 container for browser playback
+        log.info("Converting raw H264 → MP4 container: %s", clip_path)
+        _wrap_h264_in_mp4(clip_path)
+
         event_id = str(uuid4())
         timestamp = int(time.time() * 1000)  # Unix ms
         clip_name = Path(clip_path).name

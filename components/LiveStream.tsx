@@ -78,6 +78,19 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     };
   }, [streamUrl]);
 
+  function handleFullscreen() {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.requestFullscreen) {
+      video.requestFullscreen();
+    } else if ("webkitRequestFullscreen" in video) {
+      (video as HTMLVideoElement & { webkitRequestFullscreen(): void }).webkitRequestFullscreen();
+    } else if ("webkitEnterFullscreen" in video) {
+      // iOS Safari
+      (video as HTMLVideoElement & { webkitEnterFullscreen(): void }).webkitEnterFullscreen();
+    }
+  }
+
   return (
     <div className="relative w-full bg-black rounded-lg overflow-hidden aspect-video">
       <video
@@ -102,6 +115,18 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
             <p className="text-xs text-gray-400 mt-1">Retrying in 5 seconds…</p>
           </div>
         </div>
+      )}
+      {status === "live" && (
+        <button
+          onClick={handleFullscreen}
+          title="Fullscreen"
+          className="absolute bottom-2 right-2 p-1.5 rounded bg-black/50 hover:bg-black/80 text-white transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+        </button>
       )}
     </div>
   );
