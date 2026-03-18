@@ -8,7 +8,10 @@ import type { GeckoEvent } from "@/lib/types";
 interface EventCardProps {
   event: GeckoEvent;
   onDelete?: (id: string) => void;
-  apiSecret?: string;
+  // Selection mode
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string) => void;
 }
 
 function formatDate(timestamp: number): string {
@@ -27,7 +30,7 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export default function EventCard({ event, onDelete, apiSecret }: EventCardProps) {
+export default function EventCard({ event, onDelete, selectable, selected, onSelect }: EventCardProps) {
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
@@ -36,12 +39,9 @@ export default function EventCard({ event, onDelete, apiSecret }: EventCardProps
 
     setDeleting(true);
     try {
-      const headers: HeadersInit = {};
-      if (apiSecret) headers["x-api-secret"] = apiSecret;
       const res = await fetch(`/api/events/${event.id}`, {
         method: "DELETE",
         credentials: "include",
-        headers,
       });
       if (res.ok) {
         onDelete(event.id);
@@ -58,19 +58,27 @@ export default function EventCard({ event, onDelete, apiSecret }: EventCardProps
     }
   }
 
-  return (
-    <div className="bg-gray-800 rounded-lg overflow-hidden group">
-      <Link
-        href={`/events/${event.id}`}
-        className="relative aspect-video bg-black block w-full"
-      >
-        <Image
-          src={event.thumbnailUrl}
-          alt={`Motion event at ${formatDate(event.timestamp)}`}
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, 33vw"
-        />
+  const thumbnail = (
+    <div className="relative aspect-video bg-black block w-full">
+      <Image
+        src={event.thumbnailUrl}
+        alt={`Motion event at ${formatDate(event.timestamp)}`}
+        fill
+        className="object-cover"
+        sizes="(max-width: 768px) 100vw, 33vw"
+      />
+      {selectable ? (
+        <div className={`absolute inset-0 transition-colors ${selected ? "bg-blue-500/20" : "hover:bg-white/10"}`}>
+          <div className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+            ${selected ? "bg-blue-500 border-blue-500" : "border-white/70 bg-black/30"}`}>
+            {selected && (
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+        </div>
+      ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
             <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -79,7 +87,21 @@ export default function EventCard({ event, onDelete, apiSecret }: EventCardProps
             </svg>
           </div>
         </div>
-      </Link>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={`bg-gray-800 rounded-lg overflow-hidden group ${selectable ? "cursor-pointer" : ""}`}>
+      {selectable ? (
+        <button type="button" className="w-full text-left" onClick={() => onSelect?.(event.id)}>
+          {thumbnail}
+        </button>
+      ) : (
+        <Link href={`/events/${event.id}`} className="block">
+          {thumbnail}
+        </Link>
+      )}
 
       <div className="px-3 py-2 flex items-center justify-between">
         <div>
@@ -91,7 +113,7 @@ export default function EventCard({ event, onDelete, apiSecret }: EventCardProps
           </p>
         </div>
 
-        {onDelete && (
+        {!selectable && onDelete && (
           <button
             type="button"
             onClick={handleDelete}
