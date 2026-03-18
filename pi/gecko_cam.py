@@ -9,9 +9,12 @@ Runs picamera2 with dual outputs:
 On motion: flushes CircularOutput ring buffer (10s pre) + captures 10s post,
 then calls upload_event.upload_event() in a background thread.
 
-Filters out common false positives from heat-lamp lighting:
-  - Ignores frames where one contour is >40% of image (full-frame brightness change).
-  - Requires motion above threshold for 10 consecutive frames (~0.33s) before trigger.
+Filters out heat-lamp thermostat false positives via two guards:
+  1. Brightness-delta: skips any frame where mean Y channel deviates from
+     its rolling EMA by >5 (0-255 scale) — catches lamp on/off transitions.
+  2. Coverage fraction: skips any frame where >12% of pixels are flagged as
+     foreground — a global light change hits the whole frame; gecko movement is local.
+  Requires sustained motion for 10 consecutive frames (~0.33s) before triggering.
 """
 
 import logging
@@ -22,6 +25,8 @@ import threading
 import time
 from pathlib import Path
 from uuid import uuid4
+
+import numpy as np
 
 import cv2
 from picamera2 import Picamera2
@@ -36,7 +41,7 @@ HLS_DIR = Path("/tmp/hls")
 CLIPS_DIR = Path("/tmp/clips")
 HLS_SEGMENT_TIME = 2         # seconds per HLS segment
 HLS_LIST_SIZE = 10           # segments kept in playlist
-MOTION_THRESHOLD = 15000     # sum of contour areas (pixels²) — tune to taste
+MOTION_THRESHOLD = 3000      # sum of contour areas (pixels²) — tune to taste
 COOLDOWN_SECONDS = 60        # seconds between event captures
 WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
 POST_MOTION_SECONDS = 10     # seconds to record after trigger
@@ -44,9 +49,14 @@ RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 
-# Reduce false positives from lighting (lamp on/off at 90°F)
+# Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
 SUSTAINED_MOTION_FRAMES = 10  # require motion for N consecutive frames (~0.33s)
-MAX_CONTOUR_FRACTION = 0.40  # ignore frame if largest blob is this fraction of image
+# If total motion pixels exceed this fraction of the frame it's almost certainly
+# a global lighting change (lamp on/off), not the gecko.
+MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
+# If mean frame brightness (Y channel, 0-255) changes by more than this between
+# the current frame and the rolling average, skip — it's a lighting transition.
+BRIGHTNESS_DELTA_THRESHOLD = 5
 
 LORES_W, LORES_H = 320, 240
 FRAME_PIXELS = LORES_W * LORES_H
@@ -108,6 +118,7 @@ def run() -> None:
     capturing = False
     warmup_remaining = WARMUP_FRAMES
     consecutive_high_motion = 0
+    rolling_brightness: float | None = None  # EMA of mean Y channel
 
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
@@ -120,19 +131,41 @@ def run() -> None:
     try:
         while True:
             lores = picam2.capture_array("lores")
+
+            # ── Brightness-delta filter (catches lamp thermostat transitions) ──
+            # YUV420 layout: Y plane occupies the first LORES_H rows.
+            y_mean = float(np.mean(lores[:LORES_H]))
+            if rolling_brightness is None:
+                rolling_brightness = y_mean
+            brightness_delta = abs(y_mean - rolling_brightness)
+            # Slow EMA so it tracks the settled level, not fast transients
+            rolling_brightness = rolling_brightness * 0.92 + y_mean * 0.08
+
+            if brightness_delta > BRIGHTNESS_DELTA_THRESHOLD:
+                # Global brightness shift — almost certainly the heat lamp, not gecko
+                log.debug("Brightness delta %.1f > %d — skipping (lighting change)",
+                          brightness_delta, BRIGHTNESS_DELTA_THRESHOLD)
+                consecutive_high_motion = 0
+                motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                time.sleep(POLL_INTERVAL)
+                continue
+
             frame_bgr = cv2.cvtColor(lores, cv2.COLOR_YUV2BGR_I420)
             fg_mask = bg_sub.apply(frame_bgr)
+
+            # ── Coverage filter (catches lamp changes MOG2 has partially adapted to) ──
+            total_fg_pixels = cv2.countNonZero(fg_mask)
+            if total_fg_pixels > FRAME_PIXELS * MAX_COVERAGE_FRACTION:
+                # >12% of frame in motion → global event (lighting), not gecko
+                consecutive_high_motion = 0
+                motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                time.sleep(POLL_INTERVAL)
+                continue
+
             contours, _ = cv2.findContours(
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
             motion_score = sum(cv2.contourArea(c) for c in contours)
-
-            # Reject full-frame lighting changes: one huge blob = lamp on/off
-            if contours:
-                largest_area = max(cv2.contourArea(c) for c in contours)
-                if largest_area >= FRAME_PIXELS * MAX_CONTOUR_FRACTION:
-                    motion_score = 0
-                    consecutive_high_motion = 0
 
             if warmup_remaining > 0:
                 warmup_remaining -= 1
@@ -141,7 +174,7 @@ def run() -> None:
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            # Require sustained motion (avoids single-frame light flicker)
+            # ── Sustained-motion gate (avoids single-frame flicker) ────────────
             if motion_score > MOTION_THRESHOLD:
                 consecutive_high_motion += 1
             else:
