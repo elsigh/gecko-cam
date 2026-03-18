@@ -1,0 +1,23 @@
+pi/upload_event.py
+  015458d1443a0d5a 115,119,121-123,125-129,131,133-140,142-149,153-154,157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "3825987b8a2fe5dceaac5224f7ab7babc2f99406",
+  "prompts": {
+    "015458d1443a0d5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aedec823-af3d-431f-bc00-71ce7248e9da",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 41,
+      "total_deletions": 38,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    }
+  }
+}
