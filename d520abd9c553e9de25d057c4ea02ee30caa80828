@@ -1,0 +1,25 @@
+app/events/page.tsx
+  015458d1443a0d5a 15-19,50,62-96,101-135,143-153,171-174
+components/EventCard.tsx
+  015458d1443a0d5a 11-14,33,61-62,69-81,90-104,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "d520abd9c553e9de25d057c4ea02ee30caa80828",
+  "prompts": {
+    "015458d1443a0d5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aedec823-af3d-431f-bc00-71ce7248e9da",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 142,
+      "total_deletions": 41,
+      "accepted_lines": 129,
+      "overriden_lines": 0
+    }
+  }
+}
