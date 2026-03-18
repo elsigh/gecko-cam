@@ -112,49 +112,52 @@ def upload_event(clip_path: str, motion_score: float) -> None:
     if not API_SECRET:
         raise RuntimeError("API_SECRET not set")
 
-    event_id = str(uuid4())
-    timestamp = int(time.time() * 1000)  # Unix ms
-    clip_name = Path(clip_path).name
-
-    log.info("[%s] Uploading clip: %s", event_id, clip_path)
-    clip_url = _upload_to_blob(clip_path, f"clips/{clip_name}", "video/mp4")
-    log.info("[%s] Clip uploaded: %s", event_id, clip_url)
-
-    thumb_path = _extract_thumbnail(clip_path)
-    thumb_name = Path(thumb_path).name
-    log.info("[%s] Uploading thumbnail: %s", event_id, thumb_path)
-    thumbnail_url = _upload_to_blob(thumb_path, f"thumbnails/{thumb_name}", "image/jpeg")
-    log.info("[%s] Thumbnail uploaded: %s", event_id, thumbnail_url)
-
-    duration = _get_duration(clip_path)
-
-    payload = {
-        "id": event_id,
-        "timestamp": timestamp,
-        "clipUrl": clip_url,
-        "thumbnailUrl": thumbnail_url,
-        "duration": duration,
-        "motionScore": motion_score,
-    }
-
-    resp = requests.post(
-        f"{VERCEL_APP_URL}/api/events",
-        headers={
-            "x-api-secret": API_SECRET,
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=15,
-    )
-    resp.raise_for_status()
-    log.info("[%s] Event registered: %s", event_id, resp.json())
-
-    # Clean up local files
+    thumb_path: str | None = None
     try:
-        Path(clip_path).unlink(missing_ok=True)
-        Path(thumb_path).unlink(missing_ok=True)
-    except OSError as e:
-        log.warning("Cleanup error: %s", e)
+        event_id = str(uuid4())
+        timestamp = int(time.time() * 1000)  # Unix ms
+        clip_name = Path(clip_path).name
+
+        log.info("[%s] Uploading clip: %s", event_id, clip_path)
+        clip_url = _upload_to_blob(clip_path, f"clips/{clip_name}", "video/mp4")
+        log.info("[%s] Clip uploaded: %s", event_id, clip_url)
+
+        thumb_path = _extract_thumbnail(clip_path)
+        thumb_name = Path(thumb_path).name
+        log.info("[%s] Uploading thumbnail: %s", event_id, thumb_path)
+        thumbnail_url = _upload_to_blob(thumb_path, f"thumbnails/{thumb_name}", "image/jpeg")
+        log.info("[%s] Thumbnail uploaded: %s", event_id, thumbnail_url)
+
+        duration = _get_duration(clip_path)
+
+        payload = {
+            "id": event_id,
+            "timestamp": timestamp,
+            "clipUrl": clip_url,
+            "thumbnailUrl": thumbnail_url,
+            "duration": duration,
+            "motionScore": motion_score,
+        }
+
+        resp = requests.post(
+            f"{VERCEL_APP_URL}/api/events",
+            headers={
+                "x-api-secret": API_SECRET,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        log.info("[%s] Event registered: %s", event_id, resp.json())
+    finally:
+        # Always clean up local files to prevent /tmp from filling up
+        try:
+            Path(clip_path).unlink(missing_ok=True)
+            if thumb_path:
+                Path(thumb_path).unlink(missing_ok=True)
+        except OSError as e:
+            log.warning("Cleanup error: %s", e)
 
 
 if __name__ == "__main__":
