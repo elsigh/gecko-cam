@@ -3,6 +3,18 @@ import { deleteEvent, getEvent } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateApiSecret, validateSession } from "@/lib/auth";
 
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const event = await getEvent(id);
+  if (!event) {
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+  return NextResponse.json(event);
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

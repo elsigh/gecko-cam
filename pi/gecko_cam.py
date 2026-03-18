@@ -8,6 +8,10 @@ Runs picamera2 with dual outputs:
 
 On motion: flushes CircularOutput ring buffer (10s pre) + captures 10s post,
 then calls upload_event.upload_event() in a background thread.
+
+Filters out common false positives from heat-lamp lighting:
+  - Ignores frames where one contour is >40% of image (full-frame brightness change).
+  - Requires motion above threshold for 10 consecutive frames (~0.33s) before trigger.
 """
 
 import logging
@@ -39,6 +43,13 @@ POST_MOTION_SECONDS = 10     # seconds to record after trigger
 RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
+
+# Reduce false positives from lighting (lamp on/off at 90°F)
+SUSTAINED_MOTION_FRAMES = 10  # require motion for N consecutive frames (~0.33s)
+MAX_CONTOUR_FRACTION = 0.40  # ignore frame if largest blob is this fraction of image
+
+LORES_W, LORES_H = 320, 240
+FRAME_PIXELS = LORES_W * LORES_H
 
 logging.basicConfig(
     level=logging.INFO,
@@ -96,6 +107,7 @@ def run() -> None:
     motion_cooldown = 0.0
     capturing = False
     warmup_remaining = WARMUP_FRAMES
+    consecutive_high_motion = 0
 
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
@@ -115,13 +127,31 @@ def run() -> None:
             )
             motion_score = sum(cv2.contourArea(c) for c in contours)
 
+            # Reject full-frame lighting changes: one huge blob = lamp on/off
+            if contours:
+                largest_area = max(cv2.contourArea(c) for c in contours)
+                if largest_area >= FRAME_PIXELS * MAX_CONTOUR_FRACTION:
+                    motion_score = 0
+                    consecutive_high_motion = 0
+
             if warmup_remaining > 0:
                 warmup_remaining -= 1
                 motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                consecutive_high_motion = 0
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            if motion_score > MOTION_THRESHOLD and motion_cooldown <= 0 and not capturing:
+            # Require sustained motion (avoids single-frame light flicker)
+            if motion_score > MOTION_THRESHOLD:
+                consecutive_high_motion += 1
+            else:
+                consecutive_high_motion = 0
+
+            if (
+                consecutive_high_motion >= SUSTAINED_MOTION_FRAMES
+                and motion_cooldown <= 0
+                and not capturing
+            ):
                 if not _is_armed():
                     log.info("Motion detected (score=%.0f) but snoozed — skipping.", motion_score)
                     motion_cooldown = COOLDOWN_SECONDS
@@ -135,6 +165,7 @@ def run() -> None:
                     motion_score,
                     clip_path,
                 )
+                consecutive_high_motion = 0
                 capturing = True
 
                 circular.fileoutput = str(clip_path)

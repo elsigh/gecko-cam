@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import type { GeckoEvent } from "@/lib/types";
-import EventVideoModal from "@/components/EventVideoModal";
 
 interface EventCardProps {
   event: GeckoEvent;
@@ -28,7 +28,6 @@ function formatDuration(seconds: number): string {
 }
 
 export default function EventCard({ event, onDelete, apiSecret }: EventCardProps) {
-  const [modalOpen, setModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
@@ -60,29 +59,27 @@ export default function EventCard({ event, onDelete, apiSecret }: EventCardProps
   }
 
   return (
-    <>
-      <div className="bg-gray-800 rounded-lg overflow-hidden group">
-        <button
-          type="button"
-          className="relative aspect-video bg-black cursor-pointer w-full border-0 p-0 block text-left"
-          onClick={() => setModalOpen(true)}
-        >
-          <Image
-            src={event.thumbnailUrl}
-            alt={`Motion event at ${formatDate(event.timestamp)}`}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 33vw"
-          />
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
-              <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <title>Play</title>
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
+    <div className="bg-gray-800 rounded-lg overflow-hidden group">
+      <Link
+        href={`/events/${event.id}`}
+        className="relative aspect-video bg-black block w-full"
+      >
+        <Image
+          src={event.thumbnailUrl}
+          alt={`Motion event at ${formatDate(event.timestamp)}`}
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 33vw"
+        />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+            <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <title>Play</title>
+              <path d="M8 5v14l11-7z" />
+            </svg>
           </div>
-        </button>
+        </div>
+      </Link>
 
       <div className="px-3 py-2 flex items-center justify-between">
         <div>
@@ -113,11 +110,6 @@ export default function EventCard({ event, onDelete, apiSecret }: EventCardProps
           </button>
         )}
       </div>
-      </div>
-
-      {modalOpen && (
-        <EventVideoModal event={event} onClose={() => setModalOpen(false)} />
-      )}
-    </>
+    </div>
   );
 }
