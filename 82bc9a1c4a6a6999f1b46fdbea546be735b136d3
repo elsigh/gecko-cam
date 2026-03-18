@@ -1,0 +1,23 @@
+lib/kv.ts
+  015458d1443a0d5a 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "82bc9a1c4a6a6999f1b46fdbea546be735b136d3",
+  "prompts": {
+    "015458d1443a0d5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aedec823-af3d-431f-bc00-71ce7248e9da",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
