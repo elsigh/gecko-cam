@@ -1,0 +1,35 @@
+app/api/events/[id]/route.ts
+  e4141d90ecf2d566 6-17
+components/EventCard.tsx
+  e4141d90ecf2d566 5,63-65,81-82,113
+pi/README.md
+  e4141d90ecf2d566 1-75
+app/layout.tsx
+  e4141d90ecf2d566 2,23-26
+app/events/[id]/page.tsx
+  e4141d90ecf2d566 1-21
+pi/gecko_cam.py
+  e4141d90ecf2d566 11-14,47-53,110,130-136,140,144-148,150-151,154,168
+components/EventVideoView.tsx
+  e4141d90ecf2d566 1-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "8e5216a842c05d1f6e8bacff6d0d1bd16fd585dd",
+  "prompts": {
+    "e4141d90ecf2d566": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "518f9320-a59f-4e67-b1de-39e0a955912c",
+        "model": "default"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 297,
+      "total_deletions": 47,
+      "accepted_lines": 266,
+      "overriden_lines": 0
+    }
+  }
+}
