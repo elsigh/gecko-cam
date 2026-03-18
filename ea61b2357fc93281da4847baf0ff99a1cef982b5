@@ -1,0 +1,23 @@
+pi/gecko_cam.py
+  015458d1443a0d5a 12-17,29-30,44,52,54-59,121,134-152,155-164,177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "ea61b2357fc93281da4847baf0ff99a1cef982b5",
+  "prompts": {
+    "015458d1443a0d5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aedec823-af3d-431f-bc00-71ce7248e9da",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 14,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}
