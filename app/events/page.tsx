@@ -60,10 +60,10 @@ export default function EventsPage() {
     setEvents((prev) => prev.filter((e) => e.id !== id));
   }
 
-  function toggleSelect(id: string, shiftKey: boolean) {
+  function toggleSelect(id: string) {
     const index = events.findIndex((e) => e.id === id);
-    if (shiftKey && lastClickedIndex !== null) {
-      // Range-select everything between last click and this click
+    if (lastClickedIndex !== null && lastClickedIndex !== index) {
+      // Range-select everything between last tap and this tap
       const lo = Math.min(lastClickedIndex, index);
       const hi = Math.max(lastClickedIndex, index);
       setSelected((prev) => {
