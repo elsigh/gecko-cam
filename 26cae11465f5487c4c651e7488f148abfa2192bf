@@ -1,0 +1,27 @@
+components/LiveStream.tsx
+  015458d1443a0d5a 81-93,119-129
+lib/kv.ts
+  015458d1443a0d5a 1,6-13,16-24,26,28-34,36,38-39,42-43,46-48,51,53-56,58-61,64-70,73,78-79,83-84
+pi/upload_event.py
+  015458d1443a0d5a 21-22,76-97,101,111-113,142-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "26cae11465f5487c4c651e7488f148abfa2192bf",
+  "prompts": {
+    "015458d1443a0d5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aedec823-af3d-431f-bc00-71ce7248e9da",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 120,
+      "total_deletions": 72,
+      "accepted_lines": 119,
+      "overriden_lines": 0
+    }
+  }
+}
