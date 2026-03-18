@@ -1,0 +1,27 @@
+components/EventVideoModal.tsx
+  e4141d90ecf2d566 1-140
+app/api/events/[id]/route.ts
+  e4141d90ecf2d566 4,10-14
+components/EventCard.tsx
+  e4141d90ecf2d566 6,31,40-41,44-45,50-53,63-68,70-72,79-80,84-85,99,106,108-109,117-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "48dacbf321c2c478f53516cab8f59601c7fd03f1",
+  "prompts": {
+    "e4141d90ecf2d566": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "518f9320-a59f-4e67-b1de-39e0a955912c",
+        "model": "default"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 204,
+      "total_deletions": 52,
+      "accepted_lines": 178,
+      "overriden_lines": 0
+    }
+  }
+}
