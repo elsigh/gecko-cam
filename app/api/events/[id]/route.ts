@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteEvent, getEvent } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
-import { validateApiSecret } from "@/lib/auth";
+import { validateApiSecret, validateSession } from "@/lib/auth";
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!validateApiSecret(request)) {
+  const hasApiSecret = validateApiSecret(request);
+  const sitePassword = process.env.SITE_PASSWORD;
+  const hasValidSession = sitePassword && validateSession(request);
+  const allowed = hasApiSecret || hasValidSession;
+  if (!allowed) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
