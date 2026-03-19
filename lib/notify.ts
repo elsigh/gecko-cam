@@ -35,6 +35,7 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
     await channel.post(`🦎 *MauMau spotted!* ${date}${score}\n${eventUrl}`);
   } catch (err) {
     // Notifications are best-effort — never let this break event saving
-    console.error("Slack notification failed:", err);
+    const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+    console.error("Slack notification failed:", msg);
   }
 }
