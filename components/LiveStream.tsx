@@ -18,12 +18,14 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
+  const [rotationReady, setRotationReady] = useState(false);
   const [clock, setClock] = useState("");
 
   // Load persisted rotation on mount
   useEffect(() => {
     const saved = parseInt(localStorage.getItem("stream-rotation") ?? "0");
     if (saved === 90 || saved === 180 || saved === 270) setRotation(saved);
+    setRotationReady(true);
   }, []);
 
   // Ticking clock
@@ -170,7 +172,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     <div className="relative w-full bg-black rounded-lg overflow-hidden aspect-video">
       <video
         ref={videoRef}
-        className="w-full h-full object-contain transition-transform duration-300"
+        className={`w-full h-full object-contain transition-[transform,opacity] duration-300 ${rotationReady ? "opacity-100" : "opacity-0"}`}
         style={rotationStyle(rotation)}
         muted
         playsInline
