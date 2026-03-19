@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listEvents, saveEvent, deleteEvents, getRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateApiSecret, validateSession } from "@/lib/auth";
+import { notifyGeckoEvent } from "@/lib/notify";
 import type { GeckoEvent } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest) {
 
   try {
     await saveEvent(event);
+    // Fire-and-forget — don't let notification failure affect the response
+    notifyGeckoEvent(event).catch((err) =>
+      console.error("notifyGeckoEvent error:", err)
+    );
     return NextResponse.json({ ok: true, event }, { status: 201 });
   } catch (err) {
     console.error("POST /api/events error:", err);

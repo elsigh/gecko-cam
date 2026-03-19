@@ -9,8 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@chat-adapter/slack": "^4.20.2",
+    "@chat-adapter/state-memory": "^4.20.2",
     "@vercel/blob": "^0.27.0",
-"hls.js": "^1.5.18",
+    "chat": "^4.20.2",
+    "hls.js": "^1.5.18",
     "next": "16.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
