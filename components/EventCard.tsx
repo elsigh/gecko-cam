@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { GeckoEvent } from "@/lib/types";
+import { rotationStyle } from "@/lib/useStreamRotation";
 
 interface EventCardProps {
   event: GeckoEvent;
@@ -64,7 +65,8 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
         src={event.thumbnailUrl}
         alt={`Motion event at ${formatDate(event.timestamp)}`}
         fill
-        className="object-cover"
+        className="object-cover transition-transform duration-300"
+        style={rotationStyle(event.rotation ?? 0)}
         sizes="(max-width: 768px) 100vw, 33vw"
       />
       {selectable ? (

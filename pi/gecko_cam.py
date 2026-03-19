@@ -57,6 +57,14 @@ MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
 # If mean frame brightness (Y channel, 0-255) changes by more than this between
 # the current frame and the rolling average, skip — it's a lighting transition.
 BRIGHTNESS_DELTA_THRESHOLD = 5
+# Large brightness jump (IR mode switch or dramatic lighting change) — reset
+# the background model and snap the EMA rather than waiting for slow convergence.
+BRIGHTNESS_MODE_SWITCH_THRESHOLD = 20
+# If every frame has been filtered out for this long (e.g. stuck in IR transition),
+# auto-reset the background model so detection recovers without a manual restart.
+FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
+# Log a warning at most this often when filters are continuously blocking.
+FILTER_STALL_WARN_INTERVAL = 60   # 1 minute
 
 LORES_W, LORES_H = 320, 240
 FRAME_PIXELS = LORES_W * LORES_H
@@ -119,6 +127,8 @@ def run() -> None:
     warmup_remaining = WARMUP_FRAMES
     consecutive_high_motion = 0
     rolling_brightness: float | None = None  # EMA of mean Y channel
+    last_frame_passed_filters = time.time()  # tracks when a frame last cleared all filters
+    last_stall_warn = 0.0                    # rate-limits stall warning logs
 
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
@@ -142,9 +152,20 @@ def run() -> None:
             rolling_brightness = rolling_brightness * 0.92 + y_mean * 0.08
 
             if brightness_delta > BRIGHTNESS_DELTA_THRESHOLD:
-                # Global brightness shift — almost certainly the heat lamp, not gecko
-                log.debug("Brightness delta %.1f > %d — skipping (lighting change)",
-                          brightness_delta, BRIGHTNESS_DELTA_THRESHOLD)
+                if brightness_delta > BRIGHTNESS_MODE_SWITCH_THRESHOLD:
+                    # Large jump = camera mode switch (IR↔color) — reset immediately
+                    # so detection recovers in seconds rather than minutes.
+                    log.info(
+                        "Camera mode switch detected (brightness delta %.1f) — "
+                        "resetting background model and EMA.",
+                        brightness_delta,
+                    )
+                    bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
+                    rolling_brightness = y_mean  # snap EMA to current level
+                    last_frame_passed_filters = time.time()
+                else:
+                    log.debug("Brightness delta %.1f > %d — skipping (lighting change)",
+                              brightness_delta, BRIGHTNESS_DELTA_THRESHOLD)
                 consecutive_high_motion = 0
                 motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
                 time.sleep(POLL_INTERVAL)
@@ -158,9 +179,31 @@ def run() -> None:
             if total_fg_pixels > FRAME_PIXELS * MAX_COVERAGE_FRACTION:
                 # >12% of frame in motion → global event (lighting), not gecko
                 consecutive_high_motion = 0
+                now = time.time()
+                stall_seconds = now - last_frame_passed_filters
+                if stall_seconds > FILTER_STALL_RESET_SECONDS:
+                    # Stuck for too long — bg_sub never adapted. Reset it.
+                    log.info(
+                        "Coverage filter blocking for %.0fs (%.1f%% fg) — "
+                        "resetting background model.",
+                        stall_seconds,
+                        100.0 * total_fg_pixels / FRAME_PIXELS,
+                    )
+                    bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
+                    last_frame_passed_filters = now
+                elif stall_seconds > FILTER_STALL_WARN_INTERVAL and now - last_stall_warn > FILTER_STALL_WARN_INTERVAL:
+                    log.info(
+                        "Coverage filter blocking (%.1f%% fg pixels, stalled %.0fs) — "
+                        "background model adapting…",
+                        100.0 * total_fg_pixels / FRAME_PIXELS,
+                        stall_seconds,
+                    )
+                    last_stall_warn = now
                 motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
                 time.sleep(POLL_INTERVAL)
                 continue
+
+            last_frame_passed_filters = time.time()  # frame cleared all filters
 
             contours, _ = cv2.findContours(
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE

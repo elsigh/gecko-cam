@@ -1,3 +1,5 @@
+export type Rotation = 0 | 90 | 180 | 270;
+
 export interface GeckoEvent {
   id: string;
   timestamp: number; // Unix ms
@@ -5,6 +7,7 @@ export interface GeckoEvent {
   thumbnailUrl: string;
   duration: number; // seconds
   motionScore: number;
+  rotation?: Rotation; // display rotation at capture time
 }
 
 export interface EventListResponse {

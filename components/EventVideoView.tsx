@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { GeckoEvent } from "@/lib/types";
+import { rotationStyle } from "@/lib/useStreamRotation";
 
 interface EventVideoViewProps {
   event: GeckoEvent;
@@ -103,7 +104,8 @@ export default function EventVideoView({
         <video
           ref={videoRef}
           src={event.clipUrl}
-          className="max-w-full max-h-full object-contain"
+          className="max-w-full max-h-full object-contain transition-transform duration-300"
+          style={rotationStyle(event.rotation ?? 0)}
           controls
           autoPlay
           playsInline

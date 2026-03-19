@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listEvents, saveEvent, deleteEvents } from "@/lib/kv";
+import { listEvents, saveEvent, deleteEvents, getRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateApiSecret, validateSession } from "@/lib/auth";
 import type { GeckoEvent } from "@/lib/types";
@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  const rotation = await getRotation();
+
   const event: GeckoEvent = {
     id,
     timestamp: Number(timestamp),
@@ -42,6 +44,7 @@ export async function POST(request: NextRequest) {
     thumbnailUrl,
     duration: Number(duration) || 0,
     motionScore: Number(motionScore) || 0,
+    rotation,
   };
 
   try {

@@ -1,5 +1,5 @@
 import { put } from "@vercel/blob";
-import type { GeckoEvent } from "./types";
+import type { GeckoEvent, Rotation } from "./types";
 
 const MAX_EVENTS = 200;
 const PAGE_SIZE = 12;
@@ -31,6 +31,19 @@ async function kvSet(key: string, value: unknown): Promise<void> {
     addRandomSuffix: false,
     contentType: "application/json",
   });
+}
+
+// ── Rotation ──────────────────────────────────────────────────────────────────
+
+export async function getRotation(): Promise<Rotation> {
+  const data = await kvGet<{ rotation: number }>("rotation.json");
+  const r = data?.rotation ?? 0;
+  if (r === 90 || r === 180 || r === 270) return r;
+  return 0;
+}
+
+export async function setRotation(rotation: Rotation): Promise<void> {
+  await kvSet("rotation.json", { rotation });
 }
 
 // ── Snooze ────────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
+import { rotationStyle } from "@/lib/useStreamRotation";
 
 interface LiveStreamProps {
   streamUrl: string;
@@ -17,11 +18,22 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
+  const [clock, setClock] = useState("");
 
   // Load persisted rotation on mount
   useEffect(() => {
     const saved = parseInt(localStorage.getItem("stream-rotation") ?? "0");
     if (saved === 90 || saved === 180 || saved === 270) setRotation(saved);
+  }, []);
+
+  // Ticking clock
+  useEffect(() => {
+    function tick() {
+      setClock(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -132,6 +144,12 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     setRotation((r) => {
       const next = ((r + 90) % 360) as 0 | 90 | 180 | 270;
       localStorage.setItem("stream-rotation", String(next));
+      fetch("/api/rotation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rotation: next }),
+        credentials: "include",
+      }).catch(() => {});
       return next;
     });
   }
@@ -153,11 +171,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
       <video
         ref={videoRef}
         className="w-full h-full object-contain transition-transform duration-300"
-        style={{
-          transform: rotation === 0 ? undefined
-            : rotation === 180 ? "rotate(180deg)"
-            : `rotate(${rotation}deg) scale(${9 / 16})`,
-        }}
+        style={rotationStyle(rotation)}
         muted
         playsInline
         autoPlay
@@ -181,6 +195,11 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
               Retry now
             </button>
           </div>
+        </div>
+      )}
+      {clock && (
+        <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/50 text-white text-xs font-mono tabular-nums tracking-wide">
+          {clock}
         </div>
       )}
       <div className="absolute bottom-2 right-2 flex gap-1.5">
