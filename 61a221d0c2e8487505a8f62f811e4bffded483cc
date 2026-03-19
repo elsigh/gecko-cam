@@ -1,0 +1,43 @@
+app/api/rotation/route.ts
+  d76b17aff27bbf1c 1-29
+lib/useStreamRotation.ts
+  d76b17aff27bbf1c 1-20
+components/EventCard.tsx
+  d76b17aff27bbf1c 7,68-69
+components/LiveStream.tsx
+  d76b17aff27bbf1c 5,21,29-38,147-152,174,200-204
+app/api/events/route.ts
+  d76b17aff27bbf1c 2,38-39,47
+app/events/[id]/page.tsx
+  d76b17aff27bbf1c 2,10-26
+lib/types.ts
+  d76b17aff27bbf1c 1-2,10
+pi/gecko_cam.py
+  d76b17aff27bbf1c 60-67,130-131,155-166,182-201,206
+lib/kv.ts
+  d76b17aff27bbf1c 2,36-48
+app/events/[id]/opengraph-image.tsx
+  d76b17aff27bbf1c 1-161
+components/EventVideoView.tsx
+  d76b17aff27bbf1c 6,107-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "61a221d0c2e8487505a8f62f811e4bffded483cc",
+  "prompts": {
+    "d76b17aff27bbf1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f1fe6ac-d0ce-4cce-a11c-96fffff81df2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 333,
+      "total_deletions": 18,
+      "accepted_lines": 325,
+      "overriden_lines": 0
+    }
+  }
+}
