@@ -24,7 +24,10 @@ export default function RootLayout({
             <span className="text-xl">🦎</span>
             <h1 className="font-semibold text-lg tracking-tight">Gecko Cam</h1>
           </Link>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-4">
+            <Link href="/about" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">
+              About
+            </Link>
             <SnoozeButton />
           </div>
         </header>
