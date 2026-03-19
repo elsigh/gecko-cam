@@ -1,6 +1,6 @@
 import { Chat } from "chat";
 import { createSlackAdapter } from "@chat-adapter/slack";
-import { MemoryState } from "@chat-adapter/state-memory";
+import { MemoryStateAdapter } from "@chat-adapter/state-memory";
 
 // Lazy singleton — avoids crashing at import if env vars aren't set yet
 let botInstance: Chat | null = null;
@@ -12,7 +12,7 @@ export function getBot(): Chat {
       adapters: {
         slack: createSlackAdapter(),
       },
-      state: new MemoryState(),
+      state: new MemoryStateAdapter(),
     });
   }
   return botInstance;
