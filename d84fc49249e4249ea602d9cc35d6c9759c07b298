@@ -1,0 +1,23 @@
+components/LiveStream.tsx
+  015458d1443a0d5a 10-12,18,31-37,41-42,44-52,56-57,60,66-67,69,75,79,81-85,88-89,91-95,104,109-129,177-179,181-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "d84fc49249e4249ea602d9cc35d6c9759c07b298",
+  "prompts": {
+    "015458d1443a0d5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aedec823-af3d-431f-bc00-71ce7248e9da",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 74,
+      "total_deletions": 28,
+      "accepted_lines": 71,
+      "overriden_lines": 0
+    }
+  }
+}
