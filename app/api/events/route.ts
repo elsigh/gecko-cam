@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listEvents, saveEvent } from "@/lib/kv";
-import { validateApiSecret } from "@/lib/auth";
+import { listEvents, saveEvent, deleteEvents } from "@/lib/kv";
+import { deleteEventBlobs } from "@/lib/blob";
+import { validateApiSecret, validateSession } from "@/lib/auth";
 import type { GeckoEvent } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
@@ -49,5 +50,32 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error("POST /api/events error:", err);
     return NextResponse.json({ error: "Failed to save event" }, { status: 500 });
+  }
+}
+
+// Batch delete: DELETE /api/events  body: { ids: string[] }
+export async function DELETE(request: NextRequest) {
+  const allowed = validateApiSecret(request) ||
+    (!!process.env.SITE_PASSWORD && validateSession(request));
+  if (!allowed) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let ids: string[];
+  try {
+    ({ ids } = await request.json());
+    if (!Array.isArray(ids) || ids.length === 0) throw new Error();
+  } catch {
+    return NextResponse.json({ error: "ids array required" }, { status: 400 });
+  }
+
+  try {
+    // Single read+write for the events list, blobs deleted in parallel
+    const removed = await deleteEvents(ids);
+    await Promise.all(removed.map((e) => deleteEventBlobs(e.clipUrl, e.thumbnailUrl)));
+    return NextResponse.json({ ok: true, deleted: removed.length });
+  } catch (err) {
+    console.error("DELETE /api/events error:", err);
+    return NextResponse.json({ error: "Failed to delete events" }, { status: 500 });
   }
 }
