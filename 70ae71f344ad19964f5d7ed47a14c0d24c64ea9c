@@ -1,0 +1,25 @@
+app/about/page.tsx
+  d76b17aff27bbf1c 1-121
+app/layout.tsx
+  d76b17aff27bbf1c 27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "70ae71f344ad19964f5d7ed47a14c0d24c64ea9c",
+  "prompts": {
+    "d76b17aff27bbf1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f1fe6ac-d0ce-4cce-a11c-96fffff81df2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 125,
+      "total_deletions": 1,
+      "accepted_lines": 125,
+      "overriden_lines": 0
+    }
+  }
+}
