@@ -1,0 +1,23 @@
+components/LiveStream.tsx
+  d76b17aff27bbf1c 21,28,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "8ef290073259a57527b1b10ecdda1574f7308bbc",
+  "prompts": {
+    "d76b17aff27bbf1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f1fe6ac-d0ce-4cce-a11c-96fffff81df2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
