@@ -7,11 +7,15 @@ interface LiveStreamProps {
   streamUrl: string;
 }
 
+const CONNECT_TIMEOUT_MS = 15000; // give up and retry if no response in 15s
+const RETRY_DELAY_MS = 5000;
+
 export default function LiveStream({ streamUrl }: LiveStreamProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
 
   // Load persisted rotation on mount
@@ -24,54 +28,71 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     const video = videoRef.current;
     if (!video) return;
 
+    function clearTimers() {
+      if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null; }
+      if (connectTimeoutRef.current) { clearTimeout(connectTimeoutRef.current); connectTimeoutRef.current = null; }
+    }
+
+    function scheduleRetry() {
+      clearTimers();
+      retryTimeoutRef.current = setTimeout(() => {
+        setStatus("loading");
+        initHls();
+      }, RETRY_DELAY_MS);
+    }
+
+    function startConnectTimeout() {
+      clearTimeout(connectTimeoutRef.current ?? undefined);
+      connectTimeoutRef.current = setTimeout(() => {
+        // Stream hung without erroring — force a retry
+        setStatus("error");
+        scheduleRetry();
+      }, CONNECT_TIMEOUT_MS);
+    }
+
     function initHls() {
       if (!video) return;
 
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-      }
+      hlsRef.current?.destroy();
+      startConnectTimeout();
 
       if (Hls.isSupported()) {
-        const hls = new Hls({
-          lowLatencyMode: true,
-          backBufferLength: 30,
-        });
-
+        const hls = new Hls({ lowLatencyMode: true, backBufferLength: 30 });
         hlsRef.current = hls;
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          clearTimeout(connectTimeoutRef.current ?? undefined);
+          connectTimeoutRef.current = null;
           setStatus("live");
-          video.play().catch(() => {
-            // Autoplay may be blocked — user must interact
-          });
+          video.play().catch(() => {});
         });
 
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.fatal) {
             setStatus("error");
-            // Auto-retry after 5 seconds (Pi may be restarting)
-            retryTimeoutRef.current = setTimeout(() => {
-              setStatus("loading");
-              initHls();
-            }, 5000);
+            scheduleRetry();
           }
         });
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Safari native HLS
+        // Safari native HLS — no built-in hang detection, rely on connectTimeoutRef
         video.src = streamUrl;
-        video.addEventListener("loadedmetadata", () => {
+        video.load();
+
+        const onLoaded = () => {
+          clearTimeout(connectTimeoutRef.current ?? undefined);
+          connectTimeoutRef.current = null;
           setStatus("live");
           video.play().catch(() => {});
-        });
-        video.addEventListener("error", () => {
+        };
+        const onError = () => {
           setStatus("error");
-          retryTimeoutRef.current = setTimeout(() => {
-            setStatus("loading");
-            video.load();
-          }, 5000);
-        });
+          scheduleRetry();
+        };
+
+        video.addEventListener("loadedmetadata", onLoaded, { once: true });
+        video.addEventListener("error", onError, { once: true });
       } else {
         setStatus("error");
       }
@@ -80,10 +101,32 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     initHls();
 
     return () => {
-      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      clearTimers();
       hlsRef.current?.destroy();
     };
   }, [streamUrl]);
+
+  function handleRetry() {
+    if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
+    setStatus("loading");
+    const video = videoRef.current;
+    if (!video) return;
+    // Re-trigger the effect by temporarily clearing src
+    if (Hls.isSupported()) {
+      hlsRef.current?.destroy();
+      const hls = new Hls({ lowLatencyMode: true, backBufferLength: 30 });
+      hlsRef.current = hls;
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { setStatus("live"); video.play().catch(() => {}); });
+      hls.on(Hls.Events.ERROR, (_e, data) => { if (data.fatal) { setStatus("error"); } });
+    } else {
+      video.src = "";
+      video.load();
+      setTimeout(() => { video.src = streamUrl; video.load(); }, 100);
+    }
+  }
 
   function handleRotate() {
     setRotation((r) => {
@@ -101,7 +144,6 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     } else if ("webkitRequestFullscreen" in video) {
       (video as HTMLVideoElement & { webkitRequestFullscreen(): void }).webkitRequestFullscreen();
     } else if ("webkitEnterFullscreen" in video) {
-      // iOS Safari
       (video as HTMLVideoElement & { webkitEnterFullscreen(): void }).webkitEnterFullscreen();
     }
   }
@@ -132,7 +174,12 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
         <div className="absolute inset-0 flex items-center justify-center bg-black/60">
           <div className="text-center text-white">
             <p className="text-sm font-medium">Stream offline</p>
-            <p className="text-xs text-gray-400 mt-1">Retrying in 5 seconds…</p>
+            <button
+              onClick={handleRetry}
+              className="mt-2 text-xs text-blue-300 hover:text-blue-200 underline"
+            >
+              Retry now
+            </button>
           </div>
         </div>
       )}
