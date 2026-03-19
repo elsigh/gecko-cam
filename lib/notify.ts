@@ -17,25 +17,26 @@ function getAppUrl(): string {
 }
 
 export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
-  if (
-    !process.env.SLACK_BOT_TOKEN ||
-    !process.env.SLACK_SIGNING_SECRET ||
-    !process.env.SLACK_NOTIFY_CHANNEL_ID
-  ) {
-    return;
-  }
+  const token = process.env.SLACK_BOT_TOKEN;
+  const channelId = process.env.SLACK_NOTIFY_CHANNEL_ID;
+  if (!token || !channelId) return;
 
   const date = formatDate(event.timestamp);
   const score = event.motionScore ? ` · score ${Math.round(event.motionScore)}` : "";
   const eventUrl = `${getAppUrl()}/events/${event.id}`;
+  const text = `🦎 *MauMau spotted!* ${date}${score}\n${eventUrl}`;
 
-  try {
-    const { getBot } = await import("./bot");
-    const channel = getBot().channel(process.env.SLACK_NOTIFY_CHANNEL_ID);
-    await channel.post(`🦎 *MauMau spotted!* ${date}${score}\n${eventUrl}`);
-  } catch (err) {
-    // Notifications are best-effort — never let this break event saving
-    const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
-    console.error("Slack notification failed:", msg);
+  const res = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ channel: channelId, text }),
+  });
+
+  const data = await res.json() as { ok: boolean; error?: string };
+  if (!data.ok) {
+    console.error("Slack notification failed:", data.error);
   }
 }
