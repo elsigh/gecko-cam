@@ -12,6 +12,13 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
   const hlsRef = useRef<Hls | null>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
+
+  // Load persisted rotation on mount
+  useEffect(() => {
+    const saved = parseInt(localStorage.getItem("stream-rotation") ?? "0");
+    if (saved === 90 || saved === 180 || saved === 270) setRotation(saved);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -78,6 +85,14 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     };
   }, [streamUrl]);
 
+  function handleRotate() {
+    setRotation((r) => {
+      const next = ((r + 90) % 360) as 0 | 90 | 180 | 270;
+      localStorage.setItem("stream-rotation", String(next));
+      return next;
+    });
+  }
+
   function handleFullscreen() {
     const video = videoRef.current;
     if (!video) return;
@@ -95,7 +110,12 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     <div className="relative w-full bg-black rounded-lg overflow-hidden aspect-video">
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain transition-transform duration-300"
+        style={{
+          transform: rotation === 0 ? undefined
+            : rotation === 180 ? "rotate(180deg)"
+            : `rotate(${rotation}deg) scale(${9 / 16})`,
+        }}
         muted
         playsInline
         autoPlay
@@ -116,18 +136,30 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
           </div>
         </div>
       )}
-      {status === "live" && (
+      <div className="absolute bottom-2 right-2 flex gap-1.5">
         <button
-          onClick={handleFullscreen}
-          title="Fullscreen"
-          className="absolute bottom-2 right-2 p-1.5 rounded bg-black/50 hover:bg-black/80 text-white transition-colors"
+          onClick={handleRotate}
+          title="Rotate 90°"
+          className="p-1.5 rounded bg-black/50 hover:bg-black/80 text-white transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              d="M15 3h6v6M9 21H6a3 3 0 01-3-3V6m18 3a9 9 0 11-9 9" />
           </svg>
         </button>
-      )}
+        {status === "live" && (
+          <button
+            onClick={handleFullscreen}
+            title="Fullscreen"
+            className="p-1.5 rounded bg-black/50 hover:bg-black/80 text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
