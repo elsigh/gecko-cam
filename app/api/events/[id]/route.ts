@@ -30,16 +30,13 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const event = await getEvent(id);
-    if (!event) {
+    // Single getAllEvents() call — find+remove in one read to minimize race window
+    const removed = await deleteEvent(id);
+    if (!removed) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    await Promise.all([
-      deleteEventBlobs(event.clipUrl, event.thumbnailUrl),
-      deleteEvent(id),
-    ]);
-
+    await deleteEventBlobs(removed.clipUrl, removed.thumbnailUrl);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(`DELETE /api/events/${id} error:`, err);

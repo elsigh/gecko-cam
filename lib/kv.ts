@@ -87,9 +87,13 @@ export async function listEvents(
   };
 }
 
-export async function deleteEvent(id: string): Promise<void> {
+/** Find and remove a single event in one read+write. Returns the removed event or null. */
+export async function deleteEvent(id: string): Promise<GeckoEvent | null> {
   const events = await getAllEvents();
+  const event = events.find((e) => e.id === id);
+  if (!event) return null;
   await kvSet("events.json", events.filter((e) => e.id !== id));
+  return event;
 }
 
 /** Batch delete — single blob read + single blob write regardless of how many IDs. */

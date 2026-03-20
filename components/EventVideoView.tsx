@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { GeckoEvent } from "@/lib/types";
 import { rotationStyle } from "@/lib/useStreamRotation";
@@ -26,9 +27,11 @@ export default function EventVideoView({
   backHref = "/",
   backLabel = "Back to Live",
 }: EventVideoViewProps) {
+  const router = useRouter();
   const containerRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -62,6 +65,29 @@ export default function EventVideoView({
     }
   }
 
+  async function handleDelete() {
+    if (!confirm("Delete this event?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        router.push(backHref);
+      } else {
+        const msg = res.status === 401
+          ? "Not authorized. Log in first to delete events."
+          : "Failed to delete event.";
+        alert(msg);
+        setDeleting(false);
+      }
+    } catch {
+      alert("Network error.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <section
       ref={containerRef}
@@ -82,22 +108,41 @@ export default function EventVideoView({
         <p className="text-sm text-white/90 truncate">
           {formatDate(event.timestamp)}
         </p>
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-          title="Fullscreen"
-          aria-label="Toggle fullscreen"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-            <title>Toggle fullscreen</title>
-            {isFullscreen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-white/10 disabled:opacity-40 transition-colors"
+            title="Delete event"
+            aria-label="Delete event"
+          >
+            {deleting ? (
+              <span className="inline-block w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" aria-hidden />
             ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <title>Delete event</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
             )}
-          </svg>
-        </button>
+          </button>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+            title="Fullscreen"
+            aria-label="Toggle fullscreen"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <title>Toggle fullscreen</title>
+              {isFullscreen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex items-center justify-center min-h-0 p-4">
