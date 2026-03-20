@@ -66,7 +66,7 @@ export default function EventVideoView({
   }
 
   async function handleDelete() {
-    if (!confirm("Delete this event?")) return;
+    if (!confirm(`Delete event from ${formatDate(event.timestamp)}?`)) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/events/${event.id}`, {

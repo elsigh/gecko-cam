@@ -36,7 +36,7 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
 
   async function handleDelete() {
     if (!onDelete) return;
-    if (!confirm("Delete this event?")) return;
+    if (!confirm(`Delete event from ${formatDate(event.timestamp)}?`)) return;
 
     setDeleting(true);
     try {

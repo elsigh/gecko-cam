@@ -36,10 +36,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    await deleteEventBlobs(removed.clipUrl, removed.thumbnailUrl);
+    // Blob cleanup is best-effort — don't let storage errors fail the delete
+    deleteEventBlobs(removed.clipUrl, removed.thumbnailUrl).catch((err) =>
+      console.error(`deleteEventBlobs error for ${id}:`, String(err))
+    );
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error(`DELETE /api/events/${id} error:`, err);
+    console.error(`DELETE /api/events/${id} error:`, String(err));
     return NextResponse.json({ error: "Failed to delete event" }, { status: 500 });
   }
 }
