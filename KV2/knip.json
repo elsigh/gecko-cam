@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "exclude": ["duplicates"],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "src/testing/run-tests.ts",
+        "src/testing/setup.ts",
+        "src/testing/test-setup.ts",
+        "src/testing/core-tests.ts",
+        "src/testing/perf-test.ts",
+        "api/*.ts"
+      ],
+      "project": ["src/**/*.ts", "api/**/*.ts"],
+      "ignore": ["src/**/*.test.ts"]
+    },
+    "examples/*": {
+      "ignore": ["**"]
+    }
+  }
+}

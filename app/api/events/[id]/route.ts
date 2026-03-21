@@ -1,3 +1,4 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { deleteEvent, getEvent } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
@@ -40,6 +41,8 @@ export async function DELETE(
     deleteEventBlobs(removed.clipUrl, removed.thumbnailUrl).catch((err) =>
       console.error(`deleteEventBlobs error for ${id}:`, String(err))
     );
+    revalidateTag("events-list", "default");
+    revalidatePath("/");
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(`DELETE /api/events/${id} error:`, String(err));

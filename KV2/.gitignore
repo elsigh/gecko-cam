@@ -1,0 +1,12 @@
+.vercel
+.env*.local
+node_modules/
+.DS_Store
+*.log
+.vscode/
+PLAN*
+PROJECT.md
+coverage/
+examples/external/
+todo/
+placeholder-package/

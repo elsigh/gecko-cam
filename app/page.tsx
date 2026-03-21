@@ -1,3 +1,4 @@
+import { cacheTag } from "next/cache";
 import Link from "next/link";
 import LiveStream from "@/components/LiveStream";
 import StreamStatus from "@/components/StreamStatus";
@@ -5,18 +6,20 @@ import EventCard from "@/components/EventCard";
 import { listEvents } from "@/lib/kv";
 import type { GeckoEvent } from "@/lib/types";
 
-export const revalidate = 30;
+async function getRecentEvents(): Promise<GeckoEvent[]> {
+  "use cache";
+  cacheTag("events-list");
+  try {
+    const result = await listEvents();
+    return result.events.slice(0, 6);
+  } catch {
+    return [];
+  }
+}
 
 export default async function HomePage() {
   const streamUrl = process.env.NEXT_PUBLIC_STREAM_URL ?? "";
-
-  let recentEvents: GeckoEvent[] = [];
-  try {
-    const result = await listEvents();
-    recentEvents = result.events.slice(0, 6);
-  } catch (err) {
-    console.error("Failed to load recent events:", err);
-  }
+  const recentEvents = await getRecentEvents();
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">

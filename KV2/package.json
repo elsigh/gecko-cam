@@ -1,0 +1,65 @@
+{
+  "name": "@vercel/kv2",
+  "version": "0.0.19",
+  "description": "KV2 - A type-safe KV store backed by Vercel private blobs with regional caching",
+  "type": "module",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/chaos",
+    "README.md",
+    "SKILL.md",
+    "docs"
+  ],
+  "bin": {
+    "kv2": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
+    "./testing/test-index": {
+      "import": "./dist/testing/test-index.js"
+    }
+  },
+  "scripts": {
+    "cli": "node dist/cli.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit --project tsconfig.test.json",
+    "check": "biome check --write .",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "test": "tsc && node dist/testing/run-tests.js",
+    "test:coverage": "tsc && c8 node dist/testing/run-tests.js",
+    "test:integration": "INTEGRATION_TEST=1 sh -c 'tsc && node dist/testing/run-tests.js'",
+    "knip": "knip",
+    "validate": "pnpm run knip && pnpm run lint && pnpm run typecheck && pnpm run test",
+    "prepublishOnly": "pnpm run validate"
+  },
+  "keywords": ["kv", "cache", "vercel", "blob"],
+  "author": "",
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "pnpm@10.28.1",
+  "dependencies": {
+    "@vercel/blob": "2.2.0-f6bb7b4-20260204165325",
+    "@vercel/functions": "^3.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@types/node": "^22.0.0",
+    "c8": "^10.1.3",
+    "dotenv": "^17.2.3",
+    "knip": "^5.0.0",
+    "typescript": "^5.7.0"
+  }
+}

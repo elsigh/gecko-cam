@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/test.ts": {
+      "maxDuration": 600
+    }
+  }
+}

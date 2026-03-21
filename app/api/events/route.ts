@@ -1,3 +1,4 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { listEvents, saveEvent, deleteEvents, getRotation } from "@/lib/kv";
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
 
   try {
     await saveEvent(event);
+    revalidateTag("events-list", "default");
+    revalidatePath("/");
     // Use after() so the function stays alive long enough to send the notification
     after(() =>
       notifyGeckoEvent(event).catch((err) =>
@@ -84,6 +87,8 @@ export async function DELETE(request: NextRequest) {
     // Single read+write for the events list, blobs deleted in parallel
     const removed = await deleteEvents(ids);
     await Promise.all(removed.map((e) => deleteEventBlobs(e.clipUrl, e.thumbnailUrl)));
+    revalidateTag("events-list", "default");
+    revalidatePath("/");
     return NextResponse.json({ ok: true, deleted: removed.length });
   } catch (err) {
     console.error("DELETE /api/events error:", err);
