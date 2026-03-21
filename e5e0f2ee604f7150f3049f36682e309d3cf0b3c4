@@ -1,0 +1,35 @@
+lib/kv.ts
+  d76b17aff27bbf1c 1,6,8-10,12-16,22,24-25,36-38,40-47,51,57,61,65-73,78-89,91,95-112,118-119,129,131-134,137-145,148,151-165,169-171
+components/EventsClient.tsx
+  d76b17aff27bbf1c 1-199
+tsconfig.json
+  d76b17aff27bbf1c 39-40
+app/page.tsx
+  d76b17aff27bbf1c 1,9-11,14-16,18-22
+app/api/events/[id]/route.ts
+  d76b17aff27bbf1c 1,44-45
+app/api/events/route.ts
+  d76b17aff27bbf1c 1,55-56,90-91
+app/events/page.tsx
+  d76b17aff27bbf1c 1-2,4-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "e5e0f2ee604f7150f3049f36682e309d3cf0b3c4",
+  "prompts": {
+    "d76b17aff27bbf1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f1fe6ac-d0ce-4cce-a11c-96fffff81df2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 338,
+      "total_deletions": 263,
+      "accepted_lines": 330,
+      "overriden_lines": 0
+    }
+  }
+}
