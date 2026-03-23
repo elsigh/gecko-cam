@@ -1,0 +1,31 @@
+next.config.ts
+  d76b17aff27bbf1c 4
+app/events/page.tsx
+  d76b17aff27bbf1c 1,5,9-15
+app/events/[id]/page.tsx
+  d76b17aff27bbf1c 1,4,12-18,21,38,42-43,45,47-49
+app/api/events/route.ts
+  d76b17aff27bbf1c 91
+app/api/events/[id]/route.ts
+  d76b17aff27bbf1c 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "28213596468794e1f19dc0c0e92e42554bfa02a1",
+  "prompts": {
+    "d76b17aff27bbf1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f1fe6ac-d0ce-4cce-a11c-96fffff81df2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 18,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    }
+  }
+}
