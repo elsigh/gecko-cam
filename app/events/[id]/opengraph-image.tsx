@@ -1,7 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getEvent } from "@/lib/kv";
 
-export const runtime = "edge";
 export const alt = "Gecko Cam motion event";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

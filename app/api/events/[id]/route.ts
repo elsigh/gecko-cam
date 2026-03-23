@@ -42,6 +42,7 @@ export async function DELETE(
       console.error(`deleteEventBlobs error for ${id}:`, String(err))
     );
     revalidateTag("events-list", "default");
+    revalidateTag(`event-${id}`, "default");
     revalidatePath("/");
     return NextResponse.json({ ok: true });
   } catch (err) {

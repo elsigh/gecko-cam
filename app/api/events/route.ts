@@ -88,6 +88,7 @@ export async function DELETE(request: NextRequest) {
     const removed = await deleteEvents(ids);
     await Promise.all(removed.map((e) => deleteEventBlobs(e.clipUrl, e.thumbnailUrl)));
     revalidateTag("events-list", "default");
+    for (const id of ids) revalidateTag(`event-${id}`, "default");
     revalidatePath("/");
     return NextResponse.json({ ok: true, deleted: removed.length });
   } catch (err) {
