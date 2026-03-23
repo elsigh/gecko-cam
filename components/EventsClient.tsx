@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import EventCard from "@/components/EventCard";
 import type { GeckoEvent, EventListResponse } from "@/lib/types";
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function EventsClient({ initialEvents, initialCursor }: Props) {
+  const router = useRouter();
   const [events, setEvents] = useState<GeckoEvent[]>(initialEvents);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loading, setLoading] = useState(false);
@@ -98,6 +100,7 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
         body: JSON.stringify({ ids }),
       });
       if (res.ok) {
+        router.refresh();
         setEvents((prev) => prev.filter((e) => !ids.includes(e.id)));
       } else {
         alert(res.status === 401 ? "Not authorized." : "Failed to delete events.");

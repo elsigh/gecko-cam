@@ -74,6 +74,7 @@ export default function EventVideoView({
         credentials: "include",
       });
       if (res.ok) {
+        router.refresh();
         router.push(backHref);
       } else {
         const msg = res.status === 401
