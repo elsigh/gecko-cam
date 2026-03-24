@@ -13,13 +13,11 @@ function getBaseUrl(): string {
 
 async function readBlob<T>(filename: string): Promise<T | null> {
   try {
-    const url = `${getBaseUrl()}/${BLOB_PREFIX}/${filename}`;
-    // cache: "no-store" bypasses Next.js data cache;
-    // Cache-Control/Pragma no-cache forces CDN revalidation (bypasses edge cache)
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
-    });
+    // Append a timestamp to bypass Vercel Blob's CDN cache on every read.
+    // All callers are in API routes, inside <Suspense>, or inside "use cache"
+    // boundaries, so Date.now() is safe at runtime (no prerender errors).
+    const url = `${getBaseUrl()}/${BLOB_PREFIX}/${filename}?_t=${Date.now()}`;
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
