@@ -42,17 +42,17 @@ HLS_DIR = Path("/tmp/hls")
 CLIPS_DIR = Path("/tmp/clips")
 HLS_SEGMENT_TIME = 2         # seconds per HLS segment
 HLS_LIST_SIZE = 10           # segments kept in playlist
-MOTION_THRESHOLD = 3000      # sum of contour areas (pixels²) — tune to taste
-COOLDOWN_SECONDS = 60        # seconds between event captures
+MOTION_THRESHOLD = 2000      # sum of contour areas (pixels²) — lower = more sensitive
+COOLDOWN_SECONDS = 10        # seconds between captures — short so eating gets multiple clips
 WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
-POST_MOTION_HOLD = 15        # seconds of inactivity before ending clip
-MAX_CLIP_SECONDS = 120       # hard cap on clip length (2 minutes)
+POST_MOTION_HOLD = 8         # seconds of inactivity before ending clip
+MAX_CLIP_SECONDS = 30        # 30s chunks; ring buffer covers gaps between clips
 RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
-SUSTAINED_MOTION_FRAMES = 10  # require motion for N consecutive frames (~0.33s)
+SUSTAINED_MOTION_FRAMES = 5   # require motion for N consecutive frames (~0.17s)
 # If total motion pixels exceed this fraction of the frame it's almost certainly
 # a global lighting change (lamp on/off), not the gecko.
 MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
