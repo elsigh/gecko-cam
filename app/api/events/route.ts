@@ -52,7 +52,6 @@ export async function POST(request: NextRequest) {
 
   try {
     await saveEvent(event);
-    revalidateTag("events-list", "default");
     revalidatePath("/");
     // Use after() so the function stays alive long enough to send the notification
     after(() =>
@@ -87,7 +86,6 @@ export async function DELETE(request: NextRequest) {
     // Single read+write for the events list, blobs deleted in parallel
     const removed = await deleteEvents(ids);
     await Promise.all(removed.map((e) => deleteEventBlobs(e.clipUrl, e.thumbnailUrl)));
-    revalidateTag("events-list", "default");
     for (const id of ids) revalidateTag(`event-${id}`, "default");
     revalidatePath("/");
     return NextResponse.json({ ok: true, deleted: removed.length });

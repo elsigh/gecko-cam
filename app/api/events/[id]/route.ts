@@ -41,7 +41,6 @@ export async function DELETE(
     deleteEventBlobs(removed.clipUrl, removed.thumbnailUrl).catch((err) =>
       console.error(`deleteEventBlobs error for ${id}:`, String(err))
     );
-    revalidateTag("events-list", "default");
     revalidateTag(`event-${id}`, "default");
     revalidatePath("/");
     return NextResponse.json({ ok: true });
