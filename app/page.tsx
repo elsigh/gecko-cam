@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import LiveStream from "@/components/LiveStream";
 import StreamStatus from "@/components/StreamStatus";
@@ -6,6 +7,7 @@ import EventCard from "@/components/EventCard";
 import { listEvents } from "@/lib/kv";
 
 async function RecentEventsSidebar() {
+  await connection();
   const { events } = await listEvents();
   const recent = events.slice(0, 6);
 

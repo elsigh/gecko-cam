@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { cacheTag } from "next/cache";
@@ -36,6 +37,7 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
 }
 
 async function EventDetail({ params }: EventPageProps) {
+  await connection();
   const { id } = await params;
   const event = await getEvent(id);
   if (!event) notFound();
