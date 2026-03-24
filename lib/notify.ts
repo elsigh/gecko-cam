@@ -1,15 +1,5 @@
 import type { GeckoEvent } from "./types";
 
-function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(timestamp));
-}
-
 function getAppUrl(): string {
   const url =
     process.env.NEXT_PUBLIC_APP_URL ??
@@ -24,10 +14,9 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
   const channelId = process.env.SLACK_NOTIFY_CHANNEL_ID;
   if (!token || !channelId) return;
 
-  const date = formatDate(event.timestamp);
   const score = event.motionScore ? ` · score ${Math.round(event.motionScore)}` : "";
   const eventUrl = `${getAppUrl()}/events/${event.id}`;
-  const text = `🦎 *MauMau spotted!* ${date}${score}\n${eventUrl}`;
+  const text = `🦎 *MauMau spotted!*${score}\n${eventUrl}`;
 
   const res = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
