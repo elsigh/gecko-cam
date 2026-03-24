@@ -6,8 +6,9 @@ Runs picamera2 with dual outputs:
   - main (1280x720) → FFmpeg → HLS segments in /tmp/hls/
   - lores (320x240, YUV420) → OpenCV MOG2 motion detection
 
-On motion: flushes CircularOutput ring buffer (10s pre) + captures 10s post,
-then calls upload_event.upload_event() in a background thread.
+On motion: flushes CircularOutput ring buffer (10s pre) then keeps recording
+while motion continues, up to MAX_CLIP_SECONDS. Clip ends after POST_MOTION_HOLD
+seconds of inactivity.
 
 Filters out heat-lamp thermostat false positives via two guards:
   1. Brightness-delta: skips any frame where mean Y channel deviates from
@@ -44,7 +45,8 @@ HLS_LIST_SIZE = 10           # segments kept in playlist
 MOTION_THRESHOLD = 3000      # sum of contour areas (pixels²) — tune to taste
 COOLDOWN_SECONDS = 60        # seconds between event captures
 WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
-POST_MOTION_SECONDS = 10     # seconds to record after trigger
+POST_MOTION_HOLD = 15        # seconds of inactivity before ending clip
+MAX_CLIP_SECONDS = 120       # hard cap on clip length (2 minutes)
 RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
@@ -124,6 +126,10 @@ def run() -> None:
     bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
     motion_cooldown = 0.0
     capturing = False
+    capture_start_time = 0.0
+    last_motion_during_capture = 0.0
+    clip_upload_path: str | None = None
+    capture_motion_score = 0.0
     warmup_remaining = WARMUP_FRAMES
     consecutive_high_motion = 0
     rolling_brightness: float | None = None  # EMA of mean Y channel
@@ -140,6 +146,27 @@ def run() -> None:
 
     try:
         while True:
+            now = time.time()
+
+            # ── End active capture if idle or at max duration ──────────────────
+            if capturing:
+                elapsed = now - capture_start_time
+                idle = now - last_motion_during_capture
+                if elapsed >= MAX_CLIP_SECONDS or idle >= POST_MOTION_HOLD:
+                    circular.stop()
+                    capturing = False
+                    log.info(
+                        "Clip saved (%.0fs total, %.0fs idle): %s",
+                        elapsed, idle, clip_upload_path,
+                    )
+                    threading.Thread(
+                        target=_upload_worker,
+                        args=(clip_upload_path, capture_motion_score),
+                        daemon=True,
+                    ).start()
+                    clip_upload_path = None
+                    motion_cooldown = COOLDOWN_SECONDS
+
             lores = picam2.capture_array("lores")
 
             # ── Brightness-delta filter (catches lamp thermostat transitions) ──
@@ -162,7 +189,7 @@ def run() -> None:
                     )
                     bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
                     rolling_brightness = y_mean  # snap EMA to current level
-                    last_frame_passed_filters = time.time()
+                    last_frame_passed_filters = now
                 else:
                     log.debug("Brightness delta %.1f > %d — skipping (lighting change)",
                               brightness_delta, BRIGHTNESS_DELTA_THRESHOLD)
@@ -179,7 +206,6 @@ def run() -> None:
             if total_fg_pixels > FRAME_PIXELS * MAX_COVERAGE_FRACTION:
                 # >12% of frame in motion → global event (lighting), not gecko
                 consecutive_high_motion = 0
-                now = time.time()
                 stall_seconds = now - last_frame_passed_filters
                 if stall_seconds > FILTER_STALL_RESET_SECONDS:
                     # Stuck for too long — bg_sub never adapted. Reset it.
@@ -203,7 +229,7 @@ def run() -> None:
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            last_frame_passed_filters = time.time()  # frame cleared all filters
+            last_frame_passed_filters = now  # frame cleared all filters
 
             contours, _ = cv2.findContours(
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
@@ -220,9 +246,16 @@ def run() -> None:
             # ── Sustained-motion gate (avoids single-frame flicker) ────────────
             if motion_score > MOTION_THRESHOLD:
                 consecutive_high_motion += 1
+                if capturing:
+                    last_motion_during_capture = now
+                    log.debug(
+                        "Motion continuing during capture (score=%.0f, elapsed=%.0fs)",
+                        motion_score, now - capture_start_time,
+                    )
             else:
                 consecutive_high_motion = 0
 
+            # ── Trigger new capture ────────────────────────────────────────────
             if (
                 consecutive_high_motion >= SUSTAINED_MOTION_FRAMES
                 and motion_cooldown <= 0
@@ -242,22 +275,14 @@ def run() -> None:
                     clip_path,
                 )
                 consecutive_high_motion = 0
+                capture_start_time = now
+                last_motion_during_capture = now
+                clip_upload_path = str(clip_path)
+                capture_motion_score = motion_score
                 capturing = True
 
                 circular.fileoutput = str(clip_path)
                 circular.start()  # flush pre-event ring buffer
-                time.sleep(POST_MOTION_SECONDS)
-                circular.stop()
-                capturing = False
-
-                log.info("Clip saved: %s", clip_path)
-                threading.Thread(
-                    target=_upload_worker,
-                    args=(str(clip_path), motion_score),
-                    daemon=True,
-                ).start()
-
-                motion_cooldown = COOLDOWN_SECONDS
 
             motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
             time.sleep(POLL_INTERVAL)
