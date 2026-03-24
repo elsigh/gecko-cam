@@ -1,0 +1,23 @@
+app/page.tsx
+  d76b17aff27bbf1c 1,8-48,51,78-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "ef2427a9163b696781618c1028ad9188820472a4",
+  "prompts": {
+    "d76b17aff27bbf1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f1fe6ac-d0ce-4cce-a11c-96fffff81df2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 46,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}
