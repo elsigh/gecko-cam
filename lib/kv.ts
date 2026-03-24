@@ -14,7 +14,12 @@ function getBaseUrl(): string {
 async function readBlob<T>(filename: string): Promise<T | null> {
   try {
     const url = `${getBaseUrl()}/${BLOB_PREFIX}/${filename}`;
-    const res = await fetch(url, { cache: "no-store" });
+    // cache: "no-store" bypasses Next.js data cache;
+    // Cache-Control/Pragma no-cache forces CDN revalidation (bypasses edge cache)
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+    });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {

@@ -85,7 +85,14 @@ export async function DELETE(request: NextRequest) {
   try {
     // Single read+write for the events list, blobs deleted in parallel
     const removed = await deleteEvents(ids);
-    await Promise.all(removed.map((e) => deleteEventBlobs(e.clipUrl, e.thumbnailUrl)));
+    // Best-effort blob cleanup — don't fail the delete if blobs are already gone
+    await Promise.all(
+      removed.map((e) =>
+        deleteEventBlobs(e.clipUrl, e.thumbnailUrl).catch((err) =>
+          console.error(`deleteEventBlobs error:`, String(err))
+        )
+      )
+    );
     for (const id of ids) revalidateTag(`event-${id}`, "default");
     revalidatePath("/");
     return NextResponse.json({ ok: true, deleted: removed.length });
