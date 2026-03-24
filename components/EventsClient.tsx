@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { deleteEventsAction } from "@/app/actions/events";
 import EventCard from "@/components/EventCard";
 import type { GeckoEvent, EventListResponse } from "@/lib/types";
 
@@ -93,17 +94,12 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
     setDeleting(true);
     const ids = [...selected];
     try {
-      const res = await fetch("/api/events", {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      if (res.ok) {
+      const result = await deleteEventsAction(ids);
+      if (result.ok) {
         router.refresh();
         setEvents((prev) => prev.filter((e) => !ids.includes(e.id)));
       } else {
-        alert(res.status === 401 ? "Not authorized." : "Failed to delete events.");
+        alert(result.status === 401 ? "Not authorized." : "Failed to delete events.");
       }
     } catch {
       alert("Network error.");

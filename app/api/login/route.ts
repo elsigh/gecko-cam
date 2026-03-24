@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import { createSessionToken } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   const { password } = await request.json();
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
   }
 
-  const token = createHmac("sha256", secret).update(password).digest("hex");
+  const token = createSessionToken(password, secret);
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set("gecko_session", token, {

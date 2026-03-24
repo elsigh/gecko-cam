@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listEvents, saveEvent, deleteEvents, getRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateApiSecret, validateSession } from "@/lib/auth";
+import { EVENTS_LIST_TAG, getEventTag } from "@/lib/events-cache";
 import { notifyGeckoEvent } from "@/lib/notify";
 import type { GeckoEvent } from "@/lib/types";
 
@@ -52,7 +53,11 @@ export async function POST(request: NextRequest) {
 
   try {
     await saveEvent(event);
+    revalidateTag(EVENTS_LIST_TAG, "default");
+    revalidateTag(getEventTag(id), "default");
     revalidatePath("/");
+    revalidatePath("/events");
+    revalidatePath(`/events/${id}`);
     // Use after() so the function stays alive long enough to send the notification
     after(() =>
       notifyGeckoEvent(event).catch((err) =>
@@ -93,8 +98,11 @@ export async function DELETE(request: NextRequest) {
         )
       )
     );
-    for (const id of ids) revalidateTag(`event-${id}`, "default");
+    revalidateTag(EVENTS_LIST_TAG, "default");
+    for (const id of ids) revalidateTag(getEventTag(id), "default");
     revalidatePath("/");
+    revalidatePath("/events");
+    for (const id of ids) revalidatePath(`/events/${id}`);
     return NextResponse.json({ ok: true, deleted: removed.length });
   } catch (err) {
     console.error("DELETE /api/events error:", err);

@@ -1,15 +1,12 @@
 import { Suspense } from "react";
-import { connection } from "next/server";
 import Link from "next/link";
 import LiveStream from "@/components/LiveStream";
 import StreamStatus from "@/components/StreamStatus";
 import EventCard from "@/components/EventCard";
-import { listEvents } from "@/lib/kv";
+import { getCachedRecentEvents } from "@/lib/events-cache";
 
 async function RecentEventsSidebar() {
-  await connection();
-  const { events } = await listEvents();
-  const recent = events.slice(0, 6);
+  const recent = await getCachedRecentEvents(6);
 
   return (
     <>
@@ -77,7 +74,7 @@ export default function HomePage() {
 
       {/* Right: recent events sidebar */}
       <div className="lg:w-80 xl:w-96 shrink-0">
-        <Suspense>
+        <Suspense fallback={null}>
           <RecentEventsSidebar />
         </Suspense>
       </div>

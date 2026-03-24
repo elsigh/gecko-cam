@@ -1,17 +1,15 @@
 import { Suspense } from "react";
-import { connection } from "next/server";
-import { listEvents } from "@/lib/kv";
 import EventsClient from "@/components/EventsClient";
+import { getCachedEventsPage } from "@/lib/events-cache";
 
 async function EventsList() {
-  await connection();
-  const { events, nextCursor } = await listEvents();
+  const { events, nextCursor } = await getCachedEventsPage();
   return <EventsClient initialEvents={events} initialCursor={nextCursor} />;
 }
 
 export default function EventsPage() {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <EventsList />
     </Suspense>
   );

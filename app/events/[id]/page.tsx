@@ -1,20 +1,11 @@
 import { Suspense } from "react";
-import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { cacheTag } from "next/cache";
-import { getEvent } from "@/lib/kv";
 import EventVideoView from "@/components/EventVideoView";
+import { getCachedEvent } from "@/lib/events-cache";
 
 interface EventPageProps {
   params: Promise<{ id: string }>;
-}
-
-async function getCachedEvent(id: string) {
-  "use cache";
-  cacheTag(`event-${id}`);
-  cacheTag("events-list");
-  return getEvent(id);
 }
 
 export async function generateMetadata({ params }: EventPageProps): Promise<Metadata> {
@@ -37,16 +28,15 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
 }
 
 async function EventDetail({ params }: EventPageProps) {
-  await connection();
   const { id } = await params;
-  const event = await getEvent(id);
+  const event = await getCachedEvent(id);
   if (!event) notFound();
   return <EventVideoView event={event} backHref="/events" backLabel="← All Events" />;
 }
 
 export default function EventPage({ params }: EventPageProps) {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <EventDetail params={params} />
     </Suspense>
   );
