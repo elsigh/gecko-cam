@@ -25,7 +25,7 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
   const eventUrl = `${getAppUrl()}/events/${event.id}`;
   const duration = formatDuration(event.duration);
   const detailBits = [duration, score.replace(/^ · /, "")].filter(Boolean);
-  const text = `🦎 MauMau spotted!${score} ${eventUrl}`.trim();
+  const text = `🦎 MauMau spotted!${score}\n${eventUrl}`.trim();
 
   const res = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
@@ -49,11 +49,6 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
               .filter(Boolean)
               .join("\n"),
           },
-          accessory: {
-            type: "image",
-            image_url: event.thumbnailUrl,
-            alt_text: "Motion event thumbnail",
-          },
         },
         {
           type: "actions",
@@ -67,15 +62,6 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
               },
               url: eventUrl,
               style: "primary",
-            },
-            {
-              type: "button",
-              text: {
-                type: "plain_text",
-                text: "Play Clip",
-                emoji: true,
-              },
-              url: event.clipUrl,
             },
           ],
         },
