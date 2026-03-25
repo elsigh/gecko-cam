@@ -95,12 +95,21 @@ def _wrap_h264_in_mp4(clip_path: str) -> None:
         raise
 
 
-def _extract_thumbnail(clip_path: str) -> str:
-    """Extract the first frame of the clip as a JPEG, return the path."""
+def _choose_thumbnail_time(duration: float) -> float:
+    """Pick a representative frame slightly into the clip instead of frame 0."""
+    if duration <= 0:
+        return 0
+    return max(0, min(duration * 0.2, 2.0, duration - 0.1))
+
+
+def _extract_thumbnail(clip_path: str, duration: float) -> str:
+    """Extract a representative frame from the clip as a JPEG, return the path."""
     thumb_path = clip_path.replace(".mp4", "_thumb.jpg")
+    seek_seconds = _choose_thumbnail_time(duration)
     result = subprocess.run(
         [
             "ffmpeg", "-y",
+            "-ss", f"{seek_seconds:.2f}",
             "-i", clip_path,
             "-vframes", "1",
             "-q:v", "3",
@@ -151,13 +160,13 @@ def upload_event(clip_path: str, motion_score: float) -> None:
         clip_url = _upload_to_blob(clip_path, f"clips/{clip_name}", "video/mp4")
         log.info("[%s] Clip uploaded: %s", event_id, clip_url)
 
-        thumb_path = _extract_thumbnail(clip_path)
+        duration = _get_duration(clip_path)
+
+        thumb_path = _extract_thumbnail(clip_path, duration)
         thumb_name = Path(thumb_path).name
         log.info("[%s] Uploading thumbnail: %s", event_id, thumb_path)
         thumbnail_url = _upload_to_blob(thumb_path, f"thumbnails/{thumb_name}", "image/jpeg")
         log.info("[%s] Thumbnail uploaded: %s", event_id, thumbnail_url)
-
-        duration = _get_duration(clip_path)
 
         payload = {
             "id": event_id,

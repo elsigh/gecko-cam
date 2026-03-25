@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Inter } from "next/font/google";
 import SnoozeButton from "@/components/SnoozeButton";
+import { getAppUrl } from "@/lib/site-url";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getAppUrl()),
   title: "Gecko Cam",
   description: "Live gecko vivarium webcam with motion-triggered event clips",
 };

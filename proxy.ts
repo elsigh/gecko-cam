@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/api/login", "/api/armed", "/api/events", "/api/upload-token", "/icon", "/favicon"];
+const PUBLIC_EVENT_ROUTE = /^\/events\/[^/]+(?:\/opengraph-image)?$/;
 
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  return PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || PUBLIC_EVENT_ROUTE.test(pathname);
 }
 
 async function makeToken(password: string, secret: string): Promise<string> {
