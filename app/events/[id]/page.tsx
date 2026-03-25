@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import EventVideoView from "@/components/EventVideoView";
 import { getCachedEvent } from "@/lib/events-cache";
 import { validateSessionToken } from "@/lib/auth";
+import { formatEventTimestamp } from "@/lib/event-time";
 import { getAppUrl } from "@/lib/site-url";
 
 interface EventPageProps {
@@ -18,13 +19,7 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
   const eventUrl = `${getAppUrl()}/events/${id}`;
   const imageUrl = `${eventUrl}/opengraph-image`;
 
-  const date = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(event.timestamp));
+  const date = formatEventTimestamp(event.timestamp);
 
   return {
     title: `${date} — Gecko Cam`,

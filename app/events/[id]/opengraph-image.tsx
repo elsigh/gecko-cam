@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getCachedEvent } from "@/lib/events-cache";
+import { formatEventTimestamp } from "@/lib/event-time";
 
 export const alt = "Gecko Cam motion event";
 export const size = { width: 1200, height: 630 };
@@ -13,15 +14,7 @@ export default async function OgImage({
   const { id } = await params;
   const event = await getCachedEvent(id);
 
-  const date = event
-    ? new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      }).format(new Date(event.timestamp))
-    : null;
+  const date = event ? formatEventTimestamp(event.timestamp) : null;
   const duration = event?.duration ? `${Math.round(event.duration)}s clip` : "Motion event";
   const score = event?.motionScore ? `score ${Math.round(event.motionScore)}` : null;
 

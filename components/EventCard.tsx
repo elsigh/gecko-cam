@@ -10,6 +10,7 @@ import {
   rollbackOptimisticallyDeletedEvent,
   useOptimisticallyDeletedEventIds,
 } from "@/lib/optimistic-event-deletions";
+import { formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
 import { rotationStyle } from "@/lib/useStreamRotation";
 
@@ -20,16 +21,6 @@ interface EventCardProps {
   selectable?: boolean;
   selected?: boolean;
   onSelect?: (id: string) => void;
-}
-
-function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(timestamp));
 }
 
 function formatDuration(seconds: number): string {
@@ -49,7 +40,7 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
 
   async function handleDelete() {
     if (!onDelete) return;
-    if (!confirm(`Delete event from ${formatDate(event.timestamp)}?`)) return;
+    if (!confirm(`Delete event from ${formatEventTimestamp(event.timestamp)}?`)) return;
 
     setDeleting(true);
     try {
@@ -79,7 +70,7 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
     <div className="relative aspect-video bg-black block w-full">
       <Image
         src={event.thumbnailUrl}
-        alt={`Motion event at ${formatDate(event.timestamp)}`}
+        alt={`Motion event at ${formatEventTimestamp(event.timestamp)}`}
         fill
         className="object-cover transition-transform duration-300"
         style={rotationStyle(event.rotation ?? 0)}
@@ -123,7 +114,7 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
 
       <div className="px-3 py-2 flex items-center justify-between">
         <div>
-          <p className="text-sm text-white font-medium">{formatDate(event.timestamp)}</p>
+          <p className="text-sm text-white font-medium">{formatEventTimestamp(event.timestamp)}</p>
           <p className="text-xs text-gray-400 mt-0.5">
             {event.duration ? formatDuration(event.duration) : ""}
             {event.duration && event.motionScore ? " · " : ""}

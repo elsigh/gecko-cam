@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteEventAction } from "@/app/actions/events";
+import { formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
 import { rotationStyle } from "@/lib/useStreamRotation";
 
@@ -12,16 +13,6 @@ interface EventVideoViewProps {
   backHref?: string;
   backLabel?: string;
   canDelete?: boolean;
-}
-
-function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(timestamp));
 }
 
 export default function EventVideoView({
@@ -69,7 +60,7 @@ export default function EventVideoView({
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete event from ${formatDate(event.timestamp)}?`)) return;
+    if (!confirm(`Delete event from ${formatEventTimestamp(event.timestamp)}?`)) return;
 
     setDeleting(true);
 
@@ -99,7 +90,7 @@ export default function EventVideoView({
     <section
       ref={containerRef}
       className="flex flex-col min-h-[80vh] bg-black rounded-lg"
-      aria-label={`Watch event from ${formatDate(event.timestamp)}`}
+      aria-label={`Watch event from ${formatEventTimestamp(event.timestamp)}`}
     >
       <div className="flex items-center justify-between p-3 bg-gray-900/90 border-b border-gray-800">
         {deleting ? (
@@ -123,7 +114,7 @@ export default function EventVideoView({
           </Link>
         )}
         <p className="text-sm text-white/90 truncate">
-          {formatDate(event.timestamp)}
+          {formatEventTimestamp(event.timestamp)}
         </p>
         <div className="flex items-center gap-1">
           {canDelete && (
