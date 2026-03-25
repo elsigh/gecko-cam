@@ -3,7 +3,13 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { deleteEventAction } from "@/app/actions/events";
+import {
+  markEventDeletedOptimistically,
+  rollbackOptimisticallyDeletedEvent,
+  useOptimisticallyDeletedEventIds,
+} from "@/lib/optimistic-event-deletions";
 import type { GeckoEvent } from "@/lib/types";
 import { rotationStyle } from "@/lib/useStreamRotation";
 
@@ -33,7 +39,13 @@ function formatDuration(seconds: number): string {
 }
 
 export default function EventCard({ event, onDelete, selectable, selected, onSelect }: EventCardProps) {
+  const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
+
+  if (optimisticallyDeletedIds.has(event.id)) {
+    return null;
+  }
 
   async function handleDelete() {
     if (!onDelete) return;
@@ -41,17 +53,23 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
 
     setDeleting(true);
     try {
+      markEventDeletedOptimistically(event.id);
       const result = await deleteEventAction(event.id);
-      if (result.ok) {
+
+      if (result.ok || result.status === 404) {
         onDelete(event.id);
-      } else {
-        const msg = result.status === 401
-          ? "Not authorized. Log in first to delete events."
-          : "Failed to delete event.";
-        alert(msg);
-        setDeleting(false);
+        router.refresh();
+        return;
       }
+
+      rollbackOptimisticallyDeletedEvent(event.id);
+      const msg = result.status === 401
+        ? "Not authorized. Log in first to delete events."
+        : "Failed to delete event.";
+      alert(msg);
+      setDeleting(false);
     } catch {
+      rollbackOptimisticallyDeletedEvent(event.id);
       alert("Network error.");
       setDeleting(false);
     }

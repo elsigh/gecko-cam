@@ -68,18 +68,25 @@ export default function EventVideoView({
 
   async function handleDelete() {
     if (!confirm(`Delete event from ${formatDate(event.timestamp)}?`)) return;
+
     setDeleting(true);
+
     try {
       const result = await deleteEventAction(event.id);
-      if (result.ok) {
-        router.replace(backHref);
-      } else {
-        const msg = result.status === 401
-          ? "Not authorized. Log in first to delete events."
-          : "Failed to delete event.";
-        alert(msg);
-        setDeleting(false);
+      if (result.ok || result.status === 404) {
+        if (typeof window !== "undefined") {
+          window.location.replace(backHref);
+        } else {
+          router.replace(backHref);
+        }
+        return;
       }
+
+      const msg = result.status === 401
+        ? "Not authorized. Log in first to delete events."
+        : "Failed to delete event.";
+      alert(msg);
+      setDeleting(false);
     } catch {
       alert("Network error.");
       setDeleting(false);
@@ -93,16 +100,26 @@ export default function EventVideoView({
       aria-label={`Watch event from ${formatDate(event.timestamp)}`}
     >
       <div className="flex items-center justify-between p-3 bg-gray-900/90 border-b border-gray-800">
-        <Link
-          href={backHref}
-          className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-            <title>Back</title>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          {backLabel}
-        </Link>
+        {deleting ? (
+          <span className="flex items-center gap-2 text-gray-500 text-sm cursor-wait">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <title>Back</title>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            {backLabel}
+          </span>
+        ) : (
+          <Link
+            href={backHref}
+            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <title>Back</title>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            {backLabel}
+          </Link>
+        )}
         <p className="text-sm text-white/90 truncate">
           {formatDate(event.timestamp)}
         </p>
@@ -127,6 +144,7 @@ export default function EventVideoView({
           <button
             type="button"
             onClick={toggleFullscreen}
+            disabled={deleting}
             className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
             title="Fullscreen"
             aria-label="Toggle fullscreen"

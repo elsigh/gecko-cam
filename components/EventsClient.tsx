@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteEventsAction } from "@/app/actions/events";
 import EventCard from "@/components/EventCard";
+import {
+  markEventDeletedOptimistically,
+  rollbackOptimisticallyDeletedEvent,
+  useOptimisticallyDeletedEventIds,
+} from "@/lib/optimistic-event-deletions";
 import type { GeckoEvent, EventListResponse } from "@/lib/types";
 
 interface Props {
@@ -24,6 +29,9 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
+  const optimisticallyDeletedIdsKey = [...optimisticallyDeletedIds].sort().join(",");
+  const visibleEvents = events.filter((event) => !optimisticallyDeletedIds.has(event.id));
 
   const loadMore = useCallback(async () => {
     if (loading || !cursor) return;
@@ -42,6 +50,18 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
   }, [loading, cursor]);
 
   useEffect(() => {
+    const deletedIds = new Set(
+      optimisticallyDeletedIdsKey ? optimisticallyDeletedIdsKey.split(",") : []
+    );
+
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => !deletedIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+    setLastClickedIndex(null);
+  }, [optimisticallyDeletedIdsKey]);
+
+  useEffect(() => {
     const el = loaderRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -56,16 +76,25 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
 
   function handleDelete(id: string) {
     setEvents((prev) => prev.filter((e) => e.id !== id));
+    setSelected((prev) => {
+      if (!prev.has(id)) return prev;
+
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }
 
   function toggleSelect(id: string) {
-    const index = events.findIndex((e) => e.id === id);
+    const index = visibleEvents.findIndex((event) => event.id === id);
+    if (index === -1) return;
+
     if (lastClickedIndex !== null && lastClickedIndex !== index) {
       const lo = Math.min(lastClickedIndex, index);
       const hi = Math.max(lastClickedIndex, index);
       setSelected((prev) => {
         const next = new Set(prev);
-        for (let i = lo; i <= hi; i++) next.add(events[i].id);
+        for (let i = lo; i <= hi; i++) next.add(visibleEvents[i].id);
         return next;
       });
     } else {
@@ -79,7 +108,7 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
   }
 
   function selectAll() {
-    setSelected(new Set(events.map((e) => e.id)));
+    setSelected(new Set(visibleEvents.map((event) => event.id)));
   }
 
   function exitSelectMode() {
@@ -93,19 +122,35 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
 
     setDeleting(true);
     const ids = [...selected];
+
+    for (const id of ids) {
+      markEventDeletedOptimistically(id);
+    }
+
     try {
       const result = await deleteEventsAction(ids);
       if (result.ok) {
-        router.refresh();
         setEvents((prev) => prev.filter((e) => !ids.includes(e.id)));
+        router.refresh();
+        exitSelectMode();
       } else {
+        for (const id of ids) {
+          rollbackOptimisticallyDeletedEvent(id);
+        }
         alert(result.status === 401 ? "Not authorized." : "Failed to delete events.");
+        setDeleting(false);
+        return;
       }
     } catch {
+      for (const id of ids) {
+        rollbackOptimisticallyDeletedEvent(id);
+      }
       alert("Network error.");
+      setDeleting(false);
+      return;
     }
+
     setDeleting(false);
-    exitSelectMode();
   }
 
   return (
@@ -149,12 +194,12 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
               ← Live
             </Link>
             <h2 className="text-lg font-semibold">All Events</h2>
-            {events.length > 0 && (
+            {visibleEvents.length > 0 && (
               <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
-                {events.length}{cursor ? "+" : ""}
+                {visibleEvents.length}{cursor ? "+" : ""}
               </span>
             )}
-            {events.length > 0 && (
+            {visibleEvents.length > 0 && (
               <button
                 onClick={() => setSelectMode(true)}
                 className="ml-auto text-xs text-gray-400 hover:text-gray-200 transition-colors"
@@ -166,7 +211,7 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
         )}
       </div>
 
-      {events.length === 0 && !cursor && (
+      {visibleEvents.length === 0 && !cursor && (
         <div className="text-center py-20">
           <p className="text-gray-500">No motion events recorded yet.</p>
           <p className="text-gray-600 text-sm mt-1">
@@ -176,7 +221,7 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {events.map((event) => (
+        {visibleEvents.map((event) => (
           <EventCard
             key={event.id}
             event={event}
