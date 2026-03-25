@@ -4,26 +4,43 @@ import { useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "gecko-cam:optimistically-deleted-events";
 const CHANGE_EVENT = "gecko-cam:optimistic-event-deletions";
+const EMPTY_IDS: string[] = [];
 
 const listeners = new Set<() => void>();
+let cachedRaw: string | null = null;
+let cachedIds: string[] = EMPTY_IDS;
 
 function canUseSessionStorage(): boolean {
   return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
 }
 
 function readIds(): string[] {
-  if (!canUseSessionStorage()) return [];
+  if (!canUseSessionStorage()) return EMPTY_IDS;
 
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (raw === cachedRaw) return cachedIds;
+    if (!raw) {
+      cachedRaw = null;
+      cachedIds = EMPTY_IDS;
+      return cachedIds;
+    }
 
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      cachedRaw = raw;
+      cachedIds = EMPTY_IDS;
+      return cachedIds;
+    }
 
-    return parsed.filter((value): value is string => typeof value === "string");
+    const next = parsed.filter((value): value is string => typeof value === "string");
+    cachedRaw = raw;
+    cachedIds = next.length > 0 ? next : EMPTY_IDS;
+    return cachedIds;
   } catch {
-    return [];
+    cachedRaw = null;
+    cachedIds = EMPTY_IDS;
+    return cachedIds;
   }
 }
 
@@ -39,7 +56,10 @@ function writeIds(ids: Iterable<string>) {
   if (!canUseSessionStorage()) return;
 
   const next = [...new Set(ids)].filter(Boolean);
-  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  const raw = JSON.stringify(next);
+  window.sessionStorage.setItem(STORAGE_KEY, raw);
+  cachedRaw = raw;
+  cachedIds = next.length > 0 ? next : EMPTY_IDS;
   emitChange();
 }
 
@@ -92,6 +112,6 @@ export function rollbackOptimisticallyDeletedEvent(id: string) {
 }
 
 export function useOptimisticallyDeletedEventIds(): Set<string> {
-  const ids = useSyncExternalStore(subscribe, readIds, () => []);
+  const ids = useSyncExternalStore(subscribe, readIds, () => EMPTY_IDS);
   return new Set(ids);
 }
