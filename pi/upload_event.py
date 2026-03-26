@@ -73,6 +73,19 @@ def _upload_to_blob(file_path: str, pathname: str, content_type: str) -> str:
     return resp.json()["url"]
 
 
+def _wait_for_blob(url: str, label: str, attempts: int = 5) -> None:
+    """Wait until an uploaded blob URL is actually reachable before continuing."""
+    for attempt in range(attempts):
+        try:
+            resp = requests.head(url, timeout=10)
+            if resp.ok:
+                return
+        except requests.RequestException:
+            pass
+        time.sleep(0.5 * (attempt + 1))
+    raise RuntimeError(f"{label} did not become reachable: {url}")
+
+
 def _wrap_h264_in_mp4(clip_path: str) -> None:
     """Wrap raw H264 stream (from CircularOutput) in an MP4 container in-place."""
     temp_path = clip_path + ".tmp.mp4"
@@ -158,6 +171,7 @@ def upload_event(clip_path: str, motion_score: float) -> None:
 
         log.info("[%s] Uploading clip: %s", event_id, clip_path)
         clip_url = _upload_to_blob(clip_path, f"clips/{clip_name}", "video/mp4")
+        _wait_for_blob(clip_url, "clip")
         log.info("[%s] Clip uploaded: %s", event_id, clip_url)
 
         duration = _get_duration(clip_path)
@@ -166,6 +180,7 @@ def upload_event(clip_path: str, motion_score: float) -> None:
         thumb_name = Path(thumb_path).name
         log.info("[%s] Uploading thumbnail: %s", event_id, thumb_path)
         thumbnail_url = _upload_to_blob(thumb_path, f"thumbnails/{thumb_name}", "image/jpeg")
+        _wait_for_blob(thumbnail_url, "thumbnail")
         log.info("[%s] Thumbnail uploaded: %s", event_id, thumbnail_url)
 
         payload = {

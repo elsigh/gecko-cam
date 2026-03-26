@@ -5,6 +5,7 @@ import { listEvents, saveEvent, deleteEvents, getRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateApiSecret, validateSession } from "@/lib/auth";
 import { EVENTS_LIST_TAG, getEventTag } from "@/lib/events-cache";
+import { eventMediaIsAvailable } from "@/lib/media-validation";
 import { notifyGeckoEvent } from "@/lib/notify";
 import type { GeckoEvent } from "@/lib/types";
 
@@ -52,6 +53,14 @@ export async function POST(request: NextRequest) {
   };
 
   try {
+    const mediaReady = await eventMediaIsAvailable(clipUrl, thumbnailUrl);
+    if (!mediaReady) {
+      return NextResponse.json(
+        { error: "Uploaded clip or thumbnail is not reachable yet" },
+        { status: 502 }
+      );
+    }
+
     await saveEvent(event);
     revalidateTag(EVENTS_LIST_TAG, "default");
     revalidateTag(getEventTag(id), "default");

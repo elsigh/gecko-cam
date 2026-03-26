@@ -32,6 +32,7 @@ function formatDuration(seconds: number): string {
 export default function EventCard({ event, onDelete, selectable, selected, onSelect }: EventCardProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [imageBroken, setImageBroken] = useState(false);
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
 
   if (optimisticallyDeletedIds.has(event.id)) {
@@ -68,14 +69,22 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
 
   const thumbnail = (
     <div className="relative aspect-video bg-black block w-full">
-      <Image
-        src={event.thumbnailUrl}
-        alt={`Motion event at ${formatEventTimestamp(event.timestamp)}`}
-        fill
-        className="object-cover transition-transform duration-300"
-        style={rotationStyle(event.rotation ?? 0)}
-        sizes="(max-width: 768px) 100vw, 33vw"
-      />
+      {imageBroken ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(180,220,180,0.18),_transparent_45%),linear-gradient(135deg,_#17212f,_#0d1117_70%)] text-center text-gray-200">
+          <span className="text-2xl">🦎</span>
+          <span className="mt-2 text-sm font-medium">Thumbnail unavailable</span>
+        </div>
+      ) : (
+        <Image
+          src={event.thumbnailUrl}
+          alt={`Motion event at ${formatEventTimestamp(event.timestamp)}`}
+          fill
+          className="object-cover transition-transform duration-300"
+          style={rotationStyle(event.rotation ?? 0)}
+          sizes="(max-width: 768px) 100vw, 33vw"
+          onError={() => setImageBroken(true)}
+        />
+      )}
       {selectable ? (
         <div className={`absolute inset-0 transition-colors ${selected ? "bg-blue-500/20" : "hover:bg-white/10"}`}>
           <div className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors

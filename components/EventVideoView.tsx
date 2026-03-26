@@ -26,6 +26,7 @@ export default function EventVideoView({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -157,17 +158,31 @@ export default function EventVideoView({
       </div>
 
       <div className="flex-1 flex items-center justify-center min-h-0 p-4">
-        <video
-          ref={videoRef}
-          src={event.clipUrl}
-          className="max-w-full max-h-full object-contain transition-transform duration-300"
-          style={rotationStyle(event.rotation ?? 0)}
-          controls
-          autoPlay
-          playsInline
-        >
-          <track kind="captions" />
-        </video>
+        {mediaError ? (
+          <div className="flex h-full w-full max-w-4xl items-center justify-center rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(187,247,208,0.14),_transparent_35%),linear-gradient(135deg,_rgba(17,24,39,0.96),_rgba(3,7,18,0.98))] p-8 text-center">
+            <div>
+              <div className="text-4xl">🦎</div>
+              <p className="mt-4 text-lg font-semibold text-white">Clip unavailable</p>
+              <p className="mt-2 text-sm text-gray-400">
+                This event record exists, but the media file could not be loaded.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            src={event.clipUrl}
+            poster={event.thumbnailUrl}
+            className="max-w-full max-h-full object-contain transition-transform duration-300"
+            style={rotationStyle(event.rotation ?? 0)}
+            controls
+            autoPlay
+            playsInline
+            onError={() => setMediaError(true)}
+          >
+            <track kind="captions" />
+          </video>
+        )}
       </div>
     </section>
   );
