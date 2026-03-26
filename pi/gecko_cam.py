@@ -77,6 +77,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("gecko_cam")
+remote_log_cooldowns: dict[str, float] = {}
 
 
 def _is_armed() -> bool:
@@ -90,6 +91,38 @@ def _is_armed() -> bool:
     except Exception as exc:
         log.warning("Could not reach /api/armed (%s) — assuming armed.", exc)
         return True
+
+
+def _log_remote_motion(kind: str, min_interval: float = 30.0, **payload) -> None:
+    """Ship rate-limited motion decisions to Vercel logs for tuning."""
+    vercel_url = os.environ.get("VERCEL_APP_URL", "").rstrip("/")
+    api_secret = os.environ.get("API_SECRET", "")
+    if not vercel_url or not api_secret:
+        return
+
+    now = time.time()
+    cooldown_key = f"{kind}:{payload.get('reason', '')}"
+    if now - remote_log_cooldowns.get(cooldown_key, 0.0) < min_interval:
+        return
+    remote_log_cooldowns[cooldown_key] = now
+
+    body = {
+        "kind": kind,
+        "timestamp": int(now * 1000),
+        **payload,
+    }
+    try:
+        requests.post(
+            f"{vercel_url}/api/motion-log",
+            headers={
+                "x-api-secret": api_secret,
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=5,
+        ).raise_for_status()
+    except Exception as exc:
+        log.debug("Could not post motion log (%s): %s", kind, exc)
 
 
 def ensure_dirs() -> None:
@@ -187,6 +220,12 @@ def run() -> None:
                         "resetting background model and EMA.",
                         brightness_delta,
                     )
+                    _log_remote_motion(
+                        "filter_blocked",
+                        reason="brightness_mode_switch",
+                        brightnessDelta=round(brightness_delta, 2),
+                        min_interval=60,
+                    )
                     bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
                     rolling_brightness = y_mean  # snap EMA to current level
                     last_frame_passed_filters = now
@@ -224,6 +263,13 @@ def run() -> None:
                         100.0 * total_fg_pixels / FRAME_PIXELS,
                         stall_seconds,
                     )
+                    _log_remote_motion(
+                        "filter_blocked",
+                        reason="coverage_filter",
+                        coverageFraction=round(total_fg_pixels / FRAME_PIXELS, 4),
+                        stalledSeconds=round(stall_seconds, 1),
+                        min_interval=60,
+                    )
                     last_stall_warn = now
                 motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
                 time.sleep(POLL_INTERVAL)
@@ -258,11 +304,30 @@ def run() -> None:
             # ── Trigger new capture ────────────────────────────────────────────
             if (
                 consecutive_high_motion >= SUSTAINED_MOTION_FRAMES
-                and motion_cooldown <= 0
                 and not capturing
             ):
+                if motion_cooldown > 0:
+                    _log_remote_motion(
+                        "motion_skipped",
+                        reason="cooldown",
+                        motionScore=round(motion_score, 1),
+                        cooldownRemainingSeconds=round(motion_cooldown, 1),
+                        consecutiveFrames=consecutive_high_motion,
+                        min_interval=10,
+                    )
+                    motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
                 if not _is_armed():
                     log.info("Motion detected (score=%.0f) but snoozed — skipping.", motion_score)
+                    _log_remote_motion(
+                        "motion_skipped",
+                        reason="snoozed",
+                        motionScore=round(motion_score, 1),
+                        consecutiveFrames=consecutive_high_motion,
+                        min_interval=10,
+                    )
                     motion_cooldown = COOLDOWN_SECONDS
                     motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
                     time.sleep(POLL_INTERVAL)
