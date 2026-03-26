@@ -42,17 +42,17 @@ HLS_DIR = Path("/tmp/hls")
 CLIPS_DIR = Path("/tmp/clips")
 HLS_SEGMENT_TIME = 2         # seconds per HLS segment
 HLS_LIST_SIZE = 10           # segments kept in playlist
-MOTION_THRESHOLD = 2000      # sum of contour areas (pixels²) — lower = more sensitive
-COOLDOWN_SECONDS = 10        # seconds between captures — short so eating gets multiple clips
+MOTION_THRESHOLD = 1500      # slightly lower so smaller MauMau movements trigger sooner
+COOLDOWN_SECONDS = 4         # shorter gap so repeated bowl/eating activity is less likely to be missed
 WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
-POST_MOTION_HOLD = 8         # seconds of inactivity before ending clip
-MAX_CLIP_SECONDS = 30        # 30s chunks; ring buffer covers gaps between clips
+POST_MOTION_HOLD = 12        # keep recording through brief pauses while eating/exploring
+MAX_CLIP_SECONDS = 45        # allow a longer chunk when MauMau lingers in frame
 RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
-SUSTAINED_MOTION_FRAMES = 5   # require motion for N consecutive frames (~0.17s)
+SUSTAINED_MOTION_FRAMES = 3   # require motion for N consecutive frames (~0.10s)
 # If total motion pixels exceed this fraction of the frame it's almost certainly
 # a global lighting change (lamp on/off), not the gecko.
 MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
@@ -67,6 +67,8 @@ BRIGHTNESS_MODE_SWITCH_THRESHOLD = 20
 FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
 # Log a warning at most this often when filters are continuously blocking.
 FILTER_STALL_WARN_INTERVAL = 60   # 1 minute
+MOTION_SUMMARY_INTERVAL_SECONDS = 60
+NEAR_THRESHOLD_RATIO = 0.6
 
 LORES_W, LORES_H = 320, 240
 FRAME_PIXELS = LORES_W * LORES_H
@@ -125,6 +127,22 @@ def _log_remote_motion(kind: str, min_interval: float = 30.0, **payload) -> None
         log.debug("Could not post motion log (%s): %s", kind, exc)
 
 
+def _empty_motion_summary() -> dict[str, float | int]:
+    return {
+        "frames": 0,
+        "brightnessBlocks": 0,
+        "coverageBlocks": 0,
+        "nearThresholdFrames": 0,
+        "aboveThresholdFrames": 0,
+        "capturesStarted": 0,
+        "cooldownSkips": 0,
+        "snoozedSkips": 0,
+        "maxMotionScore": 0.0,
+        "maxBrightnessDelta": 0.0,
+        "maxCoverageFraction": 0.0,
+    }
+
+
 def ensure_dirs() -> None:
     HLS_DIR.mkdir(parents=True, exist_ok=True)
     CLIPS_DIR.mkdir(parents=True, exist_ok=True)
@@ -163,11 +181,44 @@ def run() -> None:
     last_motion_during_capture = 0.0
     clip_upload_path: str | None = None
     capture_motion_score = 0.0
+    capture_peak_motion_score = 0.0
     warmup_remaining = WARMUP_FRAMES
     consecutive_high_motion = 0
     rolling_brightness: float | None = None  # EMA of mean Y channel
     last_frame_passed_filters = time.time()  # tracks when a frame last cleared all filters
     last_stall_warn = 0.0                    # rate-limits stall warning logs
+    motion_summary_started = time.time()
+    motion_summary = _empty_motion_summary()
+
+    def flush_motion_summary(force: bool = False) -> None:
+        nonlocal motion_summary_started, motion_summary
+
+        now = time.time()
+        elapsed = now - motion_summary_started
+        if not force and elapsed < MOTION_SUMMARY_INTERVAL_SECONDS:
+            return
+
+        if (
+            motion_summary["frames"] == 0
+            and motion_summary["brightnessBlocks"] == 0
+            and motion_summary["coverageBlocks"] == 0
+            and motion_summary["nearThresholdFrames"] == 0
+            and motion_summary["aboveThresholdFrames"] == 0
+            and motion_summary["capturesStarted"] == 0
+            and motion_summary["cooldownSkips"] == 0
+            and motion_summary["snoozedSkips"] == 0
+        ):
+            motion_summary_started = now
+            return
+
+        _log_remote_motion(
+            "motion_summary",
+            min_interval=0,
+            windowSeconds=round(elapsed, 1),
+            **motion_summary,
+        )
+        motion_summary_started = now
+        motion_summary = _empty_motion_summary()
 
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
@@ -192,15 +243,26 @@ def run() -> None:
                         "Clip saved (%.0fs total, %.0fs idle): %s",
                         elapsed, idle, clip_upload_path,
                     )
+                    _log_remote_motion(
+                        "capture_finished",
+                        min_interval=0,
+                        clipPath=clip_upload_path,
+                        elapsedSeconds=round(elapsed, 1),
+                        idleSeconds=round(idle, 1),
+                        initialMotionScore=round(capture_motion_score, 1),
+                        peakMotionScore=round(capture_peak_motion_score, 1),
+                    )
                     threading.Thread(
                         target=_upload_worker,
                         args=(clip_upload_path, capture_motion_score),
                         daemon=True,
                     ).start()
                     clip_upload_path = None
+                    capture_peak_motion_score = 0.0
                     motion_cooldown = COOLDOWN_SECONDS
 
             lores = picam2.capture_array("lores")
+            motion_summary["frames"] += 1
 
             # ── Brightness-delta filter (catches lamp thermostat transitions) ──
             # YUV420 layout: Y plane occupies the first LORES_H rows.
@@ -212,6 +274,11 @@ def run() -> None:
             rolling_brightness = rolling_brightness * 0.92 + y_mean * 0.08
 
             if brightness_delta > BRIGHTNESS_DELTA_THRESHOLD:
+                motion_summary["brightnessBlocks"] += 1
+                motion_summary["maxBrightnessDelta"] = max(
+                    float(motion_summary["maxBrightnessDelta"]),
+                    brightness_delta,
+                )
                 if brightness_delta > BRIGHTNESS_MODE_SWITCH_THRESHOLD:
                     # Large jump = camera mode switch (IR↔color) — reset immediately
                     # so detection recovers in seconds rather than minutes.
@@ -244,6 +311,12 @@ def run() -> None:
             total_fg_pixels = cv2.countNonZero(fg_mask)
             if total_fg_pixels > FRAME_PIXELS * MAX_COVERAGE_FRACTION:
                 # >12% of frame in motion → global event (lighting), not gecko
+                coverage_fraction = total_fg_pixels / FRAME_PIXELS
+                motion_summary["coverageBlocks"] += 1
+                motion_summary["maxCoverageFraction"] = max(
+                    float(motion_summary["maxCoverageFraction"]),
+                    coverage_fraction,
+                )
                 consecutive_high_motion = 0
                 stall_seconds = now - last_frame_passed_filters
                 if stall_seconds > FILTER_STALL_RESET_SECONDS:
@@ -260,13 +333,13 @@ def run() -> None:
                     log.info(
                         "Coverage filter blocking (%.1f%% fg pixels, stalled %.0fs) — "
                         "background model adapting…",
-                        100.0 * total_fg_pixels / FRAME_PIXELS,
+                        100.0 * coverage_fraction,
                         stall_seconds,
                     )
                     _log_remote_motion(
                         "filter_blocked",
                         reason="coverage_filter",
-                        coverageFraction=round(total_fg_pixels / FRAME_PIXELS, 4),
+                        coverageFraction=round(coverage_fraction, 4),
                         stalledSeconds=round(stall_seconds, 1),
                         min_interval=60,
                     )
@@ -281,6 +354,10 @@ def run() -> None:
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
             motion_score = sum(cv2.contourArea(c) for c in contours)
+            motion_summary["maxMotionScore"] = max(
+                float(motion_summary["maxMotionScore"]),
+                motion_score,
+            )
 
             if warmup_remaining > 0:
                 warmup_remaining -= 1
@@ -290,10 +367,15 @@ def run() -> None:
                 continue
 
             # ── Sustained-motion gate (avoids single-frame flicker) ────────────
+            if motion_score > MOTION_THRESHOLD * NEAR_THRESHOLD_RATIO:
+                motion_summary["nearThresholdFrames"] += 1
+
             if motion_score > MOTION_THRESHOLD:
+                motion_summary["aboveThresholdFrames"] += 1
                 consecutive_high_motion += 1
                 if capturing:
                     last_motion_during_capture = now
+                    capture_peak_motion_score = max(capture_peak_motion_score, motion_score)
                     log.debug(
                         "Motion continuing during capture (score=%.0f, elapsed=%.0fs)",
                         motion_score, now - capture_start_time,
@@ -307,6 +389,7 @@ def run() -> None:
                 and not capturing
             ):
                 if motion_cooldown > 0:
+                    motion_summary["cooldownSkips"] += 1
                     _log_remote_motion(
                         "motion_skipped",
                         reason="cooldown",
@@ -321,6 +404,7 @@ def run() -> None:
 
                 if not _is_armed():
                     log.info("Motion detected (score=%.0f) but snoozed — skipping.", motion_score)
+                    motion_summary["snoozedSkips"] += 1
                     _log_remote_motion(
                         "motion_skipped",
                         reason="snoozed",
@@ -344,15 +428,29 @@ def run() -> None:
                 last_motion_during_capture = now
                 clip_upload_path = str(clip_path)
                 capture_motion_score = motion_score
+                capture_peak_motion_score = motion_score
                 capturing = True
+                motion_summary["capturesStarted"] += 1
+
+                _log_remote_motion(
+                    "capture_started",
+                    min_interval=0,
+                    clipPath=str(clip_path),
+                    motionScore=round(motion_score, 1),
+                    consecutiveFrames=consecutive_high_motion,
+                    brightnessDelta=round(brightness_delta, 2),
+                    coverageFraction=round(total_fg_pixels / FRAME_PIXELS, 4),
+                )
 
                 circular.fileoutput = str(clip_path)
                 circular.start()  # flush pre-event ring buffer
 
+            flush_motion_summary()
             motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
             time.sleep(POLL_INTERVAL)
 
     finally:
+        flush_motion_summary(force=True)
         picam2.stop_recording()
         log.info("Stopped.")
 
@@ -362,6 +460,13 @@ def _upload_worker(clip_path: str, motion_score: float) -> None:
         upload_event(clip_path, motion_score)
     except Exception as exc:
         log.error("Upload failed for %s: %s", clip_path, exc)
+        _log_remote_motion(
+            "capture_upload_failed",
+            min_interval=0,
+            clipPath=clip_path,
+            motionScore=round(motion_score, 1),
+            error=str(exc),
+        )
 
 
 if __name__ == "__main__":
