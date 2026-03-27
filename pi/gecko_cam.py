@@ -15,7 +15,7 @@ Filters out heat-lamp thermostat false positives via two guards:
      its rolling EMA by >5 (0-255 scale) — catches lamp on/off transitions.
   2. Coverage fraction: skips any frame where >12% of pixels are flagged as
      foreground — a global light change hits the whole frame; gecko movement is local.
-  Requires sustained motion for 10 consecutive frames (~0.33s) before triggering.
+  Requires sustained motion for 5 consecutive frames (~0.17s) before triggering.
 """
 
 import logging
@@ -42,17 +42,17 @@ HLS_DIR = Path("/tmp/hls")
 CLIPS_DIR = Path("/tmp/clips")
 HLS_SEGMENT_TIME = 2         # seconds per HLS segment
 HLS_LIST_SIZE = 10           # segments kept in playlist
-MOTION_THRESHOLD = 1500      # slightly lower so smaller MauMau movements trigger sooner
-COOLDOWN_SECONDS = 4         # shorter gap so repeated bowl/eating activity is less likely to be missed
+MOTION_THRESHOLD = 2000      # revert closer to the prior tuning to avoid light-change captures
+COOLDOWN_SECONDS = 10        # restore a less aggressive gap between clips
 WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
-POST_MOTION_HOLD = 12        # keep recording through brief pauses while eating/exploring
-MAX_CLIP_SECONDS = 45        # allow a longer chunk when MauMau lingers in frame
+POST_MOTION_HOLD = 8         # restore the earlier tail length after motion stops
+MAX_CLIP_SECONDS = 35        # longer than before, but still bounded
 RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
-SUSTAINED_MOTION_FRAMES = 3   # require motion for N consecutive frames (~0.10s)
+SUSTAINED_MOTION_FRAMES = 5   # require motion for N consecutive frames (~0.17s)
 # If total motion pixels exceed this fraction of the frame it's almost certainly
 # a global lighting change (lamp on/off), not the gecko.
 MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
