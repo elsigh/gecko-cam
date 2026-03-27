@@ -53,7 +53,7 @@ async function EventDetail({ params }: EventPageProps) {
       event={event}
       navigation={navigation ?? undefined}
       backHref="/events"
-      backLabel="← All Events"
+      backLabel="All Events"
       canDelete={canDelete}
     />
   );
