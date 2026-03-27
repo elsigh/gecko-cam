@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteEventsAction } from "@/app/actions/events";
 import EventCard from "@/components/EventCard";
+import { formatEventDate, formatEventTime } from "@/lib/event-time";
 import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
@@ -32,6 +33,17 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
   const optimisticallyDeletedIdsKey = [...optimisticallyDeletedIds].sort().join(",");
   const visibleEvents = events.filter((event) => !optimisticallyDeletedIds.has(event.id));
+  const daySections: Array<{ dateLabel: string; events: GeckoEvent[] }> = [];
+
+  for (const event of visibleEvents) {
+    const dateLabel = formatEventDate(event.timestamp);
+    const currentSection = daySections.at(-1);
+    if (!currentSection || currentSection.dateLabel !== dateLabel) {
+      daySections.push({ dateLabel, events: [event] });
+      continue;
+    }
+    currentSection.events.push(event);
+  }
 
   const loadMore = useCallback(async () => {
     if (loading || !cursor) return;
@@ -195,11 +207,6 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
             </Link>
             <h2 className="text-lg font-semibold">All Events</h2>
             {visibleEvents.length > 0 && (
-              <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
-                {visibleEvents.length}{cursor ? "+" : ""}
-              </span>
-            )}
-            {visibleEvents.length > 0 && (
               <button
                 onClick={() => setSelectMode(true)}
                 className="ml-auto text-xs text-gray-400 hover:text-gray-200 transition-colors"
@@ -220,16 +227,29 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {visibleEvents.map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            onDelete={selectMode ? undefined : handleDelete}
-            selectable={selectMode}
-            selected={selected.has(event.id)}
-            onSelect={toggleSelect}
-          />
+      <div className="space-y-8">
+        {daySections.map((section, index) => (
+          <section key={section.dateLabel}>
+            {index > 0 && <hr className="mb-6 border-gray-800" />}
+            <div className="mb-4 flex items-center gap-3">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
+                {section.dateLabel}
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {section.events.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  timestampLabel={formatEventTime(event.timestamp)}
+                  onDelete={selectMode ? undefined : handleDelete}
+                  selectable={selectMode}
+                  selected={selected.has(event.id)}
+                  onSelect={toggleSelect}
+                />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 

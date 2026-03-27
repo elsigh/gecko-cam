@@ -10,13 +10,14 @@ import {
   rollbackOptimisticallyDeletedEvent,
   useOptimisticallyDeletedEventIds,
 } from "@/lib/optimistic-event-deletions";
-import { formatEventTimestamp } from "@/lib/event-time";
+import { formatEventTime, formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
 import { rotationStyle } from "@/lib/useStreamRotation";
 
 interface EventCardProps {
   event: GeckoEvent;
   onDelete?: (id: string) => void;
+  timestampLabel?: string;
   // Selection mode
   selectable?: boolean;
   selected?: boolean;
@@ -29,7 +30,14 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export default function EventCard({ event, onDelete, selectable, selected, onSelect }: EventCardProps) {
+export default function EventCard({
+  event,
+  onDelete,
+  timestampLabel = formatEventTimestamp(event.timestamp),
+  selectable,
+  selected,
+  onSelect,
+}: EventCardProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [imageBroken, setImageBroken] = useState(false);
@@ -123,7 +131,7 @@ export default function EventCard({ event, onDelete, selectable, selected, onSel
 
       <div className="px-3 py-2 flex items-center justify-between">
         <div>
-          <p className="text-sm text-white font-medium">{formatEventTimestamp(event.timestamp)}</p>
+          <p className="text-sm text-white font-medium">{timestampLabel || formatEventTime(event.timestamp)}</p>
           <p className="text-xs text-gray-400 mt-0.5">
             {event.duration ? formatDuration(event.duration) : ""}
             {event.duration && event.motionScore ? " · " : ""}
