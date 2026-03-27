@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import EventVideoView from "@/components/EventVideoView";
-import { getCachedEvent } from "@/lib/events-cache";
+import { getCachedEvent, getCachedEventNavigation } from "@/lib/events-cache";
 import { validateSessionToken } from "@/lib/auth";
 import { formatEventTimestamp } from "@/lib/event-time";
 import { getAppUrl } from "@/lib/site-url";
@@ -41,11 +41,22 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
 
 async function EventDetail({ params }: EventPageProps) {
   const { id } = await params;
-  const event = await getCachedEvent(id);
+  const [event, navigation] = await Promise.all([
+    getCachedEvent(id),
+    getCachedEventNavigation(id),
+  ]);
   const cookieStore = await cookies();
   const canDelete = validateSessionToken(cookieStore.get("gecko_session")?.value);
   if (!event) notFound();
-  return <EventVideoView event={event} backHref="/events" backLabel="← All Events" canDelete={canDelete} />;
+  return (
+    <EventVideoView
+      event={event}
+      navigation={navigation ?? undefined}
+      backHref="/events"
+      backLabel="← All Events"
+      canDelete={canDelete}
+    />
+  );
 }
 
 export default function EventPage({ params }: EventPageProps) {

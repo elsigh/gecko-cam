@@ -68,6 +68,10 @@ async function readEvents(): Promise<GeckoEvent[]> {
   return events ?? [];
 }
 
+export async function listAllEvents(): Promise<GeckoEvent[]> {
+  return readEvents();
+}
+
 export async function saveEvent(event: GeckoEvent): Promise<void> {
   const events = await readEvents();
   const newList = [event, ...events.filter((e) => e.id !== event.id)].slice(0, MAX_EVENTS);

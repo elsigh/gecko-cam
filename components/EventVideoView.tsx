@@ -8,8 +8,19 @@ import { formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
 import { rotationStyle } from "@/lib/useStreamRotation";
 
+interface EventNavigationTarget {
+  id: string;
+  timestamp: number;
+}
+
+interface EventNavigation {
+  older: EventNavigationTarget | null;
+  newer: EventNavigationTarget | null;
+}
+
 interface EventVideoViewProps {
   event: GeckoEvent;
+  navigation?: EventNavigation;
   backHref?: string;
   backLabel?: string;
   canDelete?: boolean;
@@ -17,6 +28,7 @@ interface EventVideoViewProps {
 
 export default function EventVideoView({
   event,
+  navigation,
   backHref = "/",
   backLabel = "Back to Live",
   canDelete = true,
@@ -30,13 +42,35 @@ export default function EventVideoView({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.closest("input, textarea, select, button, a, video") ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
       if (e.key === "Escape" && document.fullscreenElement) {
         document.exitFullscreen();
+        return;
+      }
+
+      if (deleting || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+      if (e.key === "ArrowLeft" && navigation?.older) {
+        e.preventDefault();
+        router.push(`/events/${navigation.older.id}`);
+      }
+
+      if (e.key === "ArrowRight" && navigation?.newer) {
+        e.preventDefault();
+        router.push(`/events/${navigation.newer.id}`);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [deleting, navigation, router]);
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -45,6 +79,15 @@ export default function EventVideoView({
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    if (navigation?.older) {
+      router.prefetch(`/events/${navigation.older.id}`);
+    }
+    if (navigation?.newer) {
+      router.prefetch(`/events/${navigation.newer.id}`);
+    }
+  }, [navigation, router]);
 
   async function toggleFullscreen() {
     const el = containerRef.current;
@@ -87,36 +130,98 @@ export default function EventVideoView({
     }
   }
 
+  function NavigationButton({
+    href,
+    label,
+    timestamp,
+    direction,
+  }: {
+    href: string;
+    label: string;
+    timestamp: number;
+    direction: "left" | "right";
+  }) {
+    const iconPath = direction === "left"
+      ? "M15 19l-7-7 7-7"
+      : "M9 5l7 7-7 7";
+
+    return (
+      <Link
+        href={href}
+        className="group flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-gray-200 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
+      >
+        <svg className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={iconPath} />
+        </svg>
+        <span className="min-w-0">
+          <span className="block text-[11px] font-medium uppercase tracking-[0.24em] text-gray-500 group-hover:text-gray-300">
+            {label}
+          </span>
+          <span className="block truncate text-sm text-white/90">
+            {formatEventTimestamp(timestamp)}
+          </span>
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <section
       ref={containerRef}
       className="flex flex-col min-h-[80vh] bg-black rounded-lg"
       aria-label={`Watch event from ${formatEventTimestamp(event.timestamp)}`}
     >
-      <div className="flex items-center justify-between p-3 bg-gray-900/90 border-b border-gray-800">
-        {deleting ? (
-          <span className="flex items-center gap-2 text-gray-500 text-sm cursor-wait">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <title>Back</title>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {backLabel}
-          </span>
-        ) : (
-          <Link
-            href={backHref}
-            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <title>Back</title>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {backLabel}
-          </Link>
-        )}
-        <p className="text-sm text-white/90 truncate">
-          {formatEventTimestamp(event.timestamp)}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 bg-gray-900/90 p-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {deleting ? (
+            <span className="flex items-center gap-2 text-sm text-gray-500 cursor-wait">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <title>Back</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              {backLabel}
+            </span>
+          ) : (
+            <Link
+              href={backHref}
+              className="flex items-center gap-2 text-sm text-gray-300 transition-colors hover:text-white"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <title>Back</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              {backLabel}
+            </Link>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {navigation?.older && (
+              <NavigationButton
+                href={`/events/${navigation.older.id}`}
+                label="Older"
+                timestamp={navigation.older.timestamp}
+                direction="left"
+              />
+            )}
+            {navigation?.newer && (
+              <NavigationButton
+                href={`/events/${navigation.newer.id}`}
+                label="Newer"
+                timestamp={navigation.newer.timestamp}
+                direction="right"
+              />
+            )}
+          </div>
+        </div>
+        <div className="min-w-0 text-center">
+          <p className="truncate text-sm text-white/90">
+            {formatEventTimestamp(event.timestamp)}
+          </p>
+          {(navigation?.older || navigation?.newer) && (
+            <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
+              Use Left/Right Arrow Keys
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           {canDelete && (
             <button
