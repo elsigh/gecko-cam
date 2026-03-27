@@ -24,6 +24,7 @@ import signal
 import sys
 import threading
 import time
+from collections import deque
 from pathlib import Path
 from uuid import uuid4
 
@@ -62,6 +63,8 @@ BRIGHTNESS_DELTA_THRESHOLD = 5
 # Large brightness jump (IR mode switch or dramatic lighting change) — reset
 # the background model and snap the EMA rather than waiting for slow convergence.
 BRIGHTNESS_MODE_SWITCH_THRESHOLD = 20
+# After a mode switch, ignore new captures briefly while the scene settles.
+BRIGHTNESS_RECOVERY_SECONDS = 45
 # If every frame has been filtered out for this long (e.g. stuck in IR transition),
 # auto-reset the background model so detection recovers without a manual restart.
 FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
@@ -69,6 +72,12 @@ FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
 FILTER_STALL_WARN_INTERVAL = 60   # 1 minute
 MOTION_SUMMARY_INTERVAL_SECONDS = 60
 NEAR_THRESHOLD_RATIO = 0.6
+NOISY_WINDOW_SECONDS = 60
+NOISY_WINDOW_BRIGHTNESS_BLOCKS = 8
+NOISY_WINDOW_COVERAGE_BLOCKS = 2
+NOISY_WINDOW_MAX_START_COVERAGE_FRACTION = 0.025
+CAPTURE_START_MAX_COVERAGE_FRACTION = 0.08
+SKIP_RETRY_COOLDOWN_SECONDS = 2
 
 LORES_W, LORES_H = 320, 240
 FRAME_PIXELS = LORES_W * LORES_H
@@ -132,6 +141,9 @@ def _empty_motion_summary() -> dict[str, float | int]:
         "frames": 0,
         "brightnessBlocks": 0,
         "coverageBlocks": 0,
+        "brightnessRecoverySkips": 0,
+        "noisyWindowSkips": 0,
+        "startCoverageSkips": 0,
         "nearThresholdFrames": 0,
         "aboveThresholdFrames": 0,
         "capturesStarted": 0,
@@ -189,6 +201,9 @@ def run() -> None:
     last_stall_warn = 0.0                    # rate-limits stall warning logs
     motion_summary_started = time.time()
     motion_summary = _empty_motion_summary()
+    recent_brightness_block_times: deque[float] = deque()
+    recent_coverage_block_times: deque[float] = deque()
+    last_brightness_mode_switch = 0.0
 
     def flush_motion_summary(force: bool = False) -> None:
         nonlocal motion_summary_started, motion_summary
@@ -198,16 +213,7 @@ def run() -> None:
         if not force and elapsed < MOTION_SUMMARY_INTERVAL_SECONDS:
             return
 
-        if (
-            motion_summary["frames"] == 0
-            and motion_summary["brightnessBlocks"] == 0
-            and motion_summary["coverageBlocks"] == 0
-            and motion_summary["nearThresholdFrames"] == 0
-            and motion_summary["aboveThresholdFrames"] == 0
-            and motion_summary["capturesStarted"] == 0
-            and motion_summary["cooldownSkips"] == 0
-            and motion_summary["snoozedSkips"] == 0
-        ):
+        if not any(motion_summary.values()):
             motion_summary_started = now
             return
 
@@ -219,6 +225,11 @@ def run() -> None:
         )
         motion_summary_started = now
         motion_summary = _empty_motion_summary()
+
+    def trim_recent_events(event_times: deque[float], now: float) -> None:
+        cutoff = now - NOISY_WINDOW_SECONDS
+        while event_times and event_times[0] < cutoff:
+            event_times.popleft()
 
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
@@ -275,6 +286,8 @@ def run() -> None:
 
             if brightness_delta > BRIGHTNESS_DELTA_THRESHOLD:
                 motion_summary["brightnessBlocks"] += 1
+                recent_brightness_block_times.append(now)
+                trim_recent_events(recent_brightness_block_times, now)
                 motion_summary["maxBrightnessDelta"] = max(
                     float(motion_summary["maxBrightnessDelta"]),
                     brightness_delta,
@@ -293,6 +306,7 @@ def run() -> None:
                         brightnessDelta=round(brightness_delta, 2),
                         min_interval=60,
                     )
+                    last_brightness_mode_switch = now
                     bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
                     rolling_brightness = y_mean  # snap EMA to current level
                     last_frame_passed_filters = now
@@ -313,6 +327,8 @@ def run() -> None:
                 # >12% of frame in motion → global event (lighting), not gecko
                 coverage_fraction = total_fg_pixels / FRAME_PIXELS
                 motion_summary["coverageBlocks"] += 1
+                recent_coverage_block_times.append(now)
+                trim_recent_events(recent_coverage_block_times, now)
                 motion_summary["maxCoverageFraction"] = max(
                     float(motion_summary["maxCoverageFraction"]),
                     coverage_fraction,
@@ -349,11 +365,14 @@ def run() -> None:
                 continue
 
             last_frame_passed_filters = now  # frame cleared all filters
+            trim_recent_events(recent_brightness_block_times, now)
+            trim_recent_events(recent_coverage_block_times, now)
 
             contours, _ = cv2.findContours(
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
             motion_score = sum(cv2.contourArea(c) for c in contours)
+            coverage_fraction = total_fg_pixels / FRAME_PIXELS
             motion_summary["maxMotionScore"] = max(
                 float(motion_summary["maxMotionScore"]),
                 motion_score,
@@ -388,6 +407,7 @@ def run() -> None:
                 consecutive_high_motion >= SUSTAINED_MOTION_FRAMES
                 and not capturing
             ):
+                trigger_frames = consecutive_high_motion
                 if motion_cooldown > 0:
                     motion_summary["cooldownSkips"] += 1
                     _log_remote_motion(
@@ -395,7 +415,7 @@ def run() -> None:
                         reason="cooldown",
                         motionScore=round(motion_score, 1),
                         cooldownRemainingSeconds=round(motion_cooldown, 1),
-                        consecutiveFrames=consecutive_high_motion,
+                        consecutiveFrames=trigger_frames,
                         min_interval=10,
                     )
                     motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
@@ -409,11 +429,72 @@ def run() -> None:
                         "motion_skipped",
                         reason="snoozed",
                         motionScore=round(motion_score, 1),
-                        consecutiveFrames=consecutive_high_motion,
+                        consecutiveFrames=trigger_frames,
                         min_interval=10,
                     )
                     motion_cooldown = COOLDOWN_SECONDS
                     motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
+                if last_brightness_mode_switch and now - last_brightness_mode_switch < BRIGHTNESS_RECOVERY_SECONDS:
+                    motion_summary["brightnessRecoverySkips"] += 1
+                    consecutive_high_motion = 0
+                    motion_cooldown = max(motion_cooldown, SKIP_RETRY_COOLDOWN_SECONDS)
+                    _log_remote_motion(
+                        "motion_skipped",
+                        reason="brightness_recovery",
+                        motionScore=round(motion_score, 1),
+                        coverageFraction=round(coverage_fraction, 4),
+                        secondsSinceBrightnessModeSwitch=round(
+                            now - last_brightness_mode_switch, 1
+                        ),
+                        recentBrightnessBlocks=len(recent_brightness_block_times),
+                        recentCoverageBlocks=len(recent_coverage_block_times),
+                        consecutiveFrames=trigger_frames,
+                        min_interval=10,
+                    )
+                    consecutive_high_motion = 0
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
+                if coverage_fraction > CAPTURE_START_MAX_COVERAGE_FRACTION:
+                    motion_summary["startCoverageSkips"] += 1
+                    motion_cooldown = max(motion_cooldown, SKIP_RETRY_COOLDOWN_SECONDS)
+                    _log_remote_motion(
+                        "motion_skipped",
+                        reason="start_coverage_filter",
+                        motionScore=round(motion_score, 1),
+                        coverageFraction=round(coverage_fraction, 4),
+                        recentBrightnessBlocks=len(recent_brightness_block_times),
+                        recentCoverageBlocks=len(recent_coverage_block_times),
+                        consecutiveFrames=trigger_frames,
+                        min_interval=10,
+                    )
+                    consecutive_high_motion = 0
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
+                if (
+                    (
+                        len(recent_brightness_block_times) >= NOISY_WINDOW_BRIGHTNESS_BLOCKS
+                        or len(recent_coverage_block_times) >= NOISY_WINDOW_COVERAGE_BLOCKS
+                    )
+                    and coverage_fraction > NOISY_WINDOW_MAX_START_COVERAGE_FRACTION
+                ):
+                    motion_summary["noisyWindowSkips"] += 1
+                    motion_cooldown = max(motion_cooldown, SKIP_RETRY_COOLDOWN_SECONDS)
+                    _log_remote_motion(
+                        "motion_skipped",
+                        reason="noisy_window",
+                        motionScore=round(motion_score, 1),
+                        coverageFraction=round(coverage_fraction, 4),
+                        recentBrightnessBlocks=len(recent_brightness_block_times),
+                        recentCoverageBlocks=len(recent_coverage_block_times),
+                        consecutiveFrames=trigger_frames,
+                        min_interval=10,
+                    )
+                    consecutive_high_motion = 0
                     time.sleep(POLL_INTERVAL)
                     continue
 
@@ -437,9 +518,9 @@ def run() -> None:
                     min_interval=0,
                     clipPath=str(clip_path),
                     motionScore=round(motion_score, 1),
-                    consecutiveFrames=consecutive_high_motion,
+                    consecutiveFrames=trigger_frames,
                     brightnessDelta=round(brightness_delta, 2),
-                    coverageFraction=round(total_fg_pixels / FRAME_PIXELS, 4),
+                    coverageFraction=round(coverage_fraction, 4),
                 )
 
                 circular.fileoutput = str(clip_path)
