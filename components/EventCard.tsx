@@ -58,7 +58,6 @@ export default function EventCard({
 
       if (result.ok || result.status === 404) {
         onDelete(event.id);
-        rollbackOptimisticallyDeletedEvent(event.id);
         router.refresh();
         return;
       }

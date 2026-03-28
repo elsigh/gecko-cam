@@ -143,9 +143,6 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
       const result = await deleteEventsAction(ids);
       if (result.ok) {
         setEvents((prev) => prev.filter((e) => !ids.includes(e.id)));
-        for (const id of ids) {
-          rollbackOptimisticallyDeletedEvent(id);
-        }
         router.refresh();
         exitSelectMode();
       } else {

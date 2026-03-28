@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { deleteEventAction } from "@/app/actions/events";
+import {
+  markEventDeletedOptimistically,
+  rollbackOptimisticallyDeletedEvent,
+} from "@/lib/optimistic-event-deletions";
 import { formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
 import { rotationStyle } from "@/lib/useStreamRotation";
@@ -107,6 +111,7 @@ export default function EventVideoView({
     if (!confirm(`Delete event from ${formatEventTimestamp(event.timestamp)}?`)) return;
 
     setDeleting(true);
+    markEventDeletedOptimistically(event.id);
 
     try {
       const result = await deleteEventAction(event.id);
@@ -122,9 +127,11 @@ export default function EventVideoView({
       const msg = result.status === 401
         ? "Not authorized. Log in first to delete events."
         : "Failed to delete event.";
+      rollbackOptimisticallyDeletedEvent(event.id);
       alert(msg);
       setDeleting(false);
     } catch {
+      rollbackOptimisticallyDeletedEvent(event.id);
       alert("Network error.");
       setDeleting(false);
     }
