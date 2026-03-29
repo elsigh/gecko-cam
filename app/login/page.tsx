@@ -45,7 +45,6 @@ function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-gray-500"
-          autoFocus
           required
         />
       </div>

@@ -27,7 +27,7 @@ function readIds(): string[] {
       return cachedIds;
     }
 
-    const parsed = JSON.parse(raw) as { ids?: unknown; updatedAt?: unknown } | unknown;
+    const parsed = JSON.parse(raw) as unknown;
     if (Array.isArray(parsed)) {
       // Clear legacy array-only payloads so stale optimistic deletions do not
       // survive forever across unrelated page views.

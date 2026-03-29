@@ -78,7 +78,9 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && cursor && !loading) loadMore();
+        if (entries[0].isIntersecting && cursor && !loading) {
+          void loadMore();
+        }
       },
       { rootMargin: "200px" }
     );
@@ -112,7 +114,11 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
     } else {
       setSelected((prev) => {
         const next = new Set(prev);
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
         return next;
       });
     }

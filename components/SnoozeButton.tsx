@@ -36,7 +36,7 @@ export default function SnoozeButton() {
   }
 
   useEffect(() => {
-    fetchState();
+    void fetchState();
     const interval = setInterval(fetchState, 30_000);
     return () => clearInterval(interval);
   }, []);

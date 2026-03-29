@@ -56,7 +56,7 @@ export default function EventVideoView({
       }
 
       if (e.key === "Escape" && document.fullscreenElement) {
-        document.exitFullscreen();
+        void document.exitFullscreen();
         return;
       }
 

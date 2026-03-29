@@ -19,7 +19,7 @@ export default function StreamStatus({ streamUrl }: StreamStatusProps) {
       }
     }
 
-    checkStream();
+    void checkStream();
     const interval = setInterval(checkStream, 15000);
     return () => clearInterval(interval);
   }, [streamUrl]);

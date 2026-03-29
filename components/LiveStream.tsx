@@ -160,7 +160,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     const video = videoRef.current;
     if (!video) return;
     if (video.requestFullscreen) {
-      video.requestFullscreen();
+      void video.requestFullscreen();
     } else if ("webkitRequestFullscreen" in video) {
       (video as HTMLVideoElement & { webkitRequestFullscreen(): void }).webkitRequestFullscreen();
     } else if ("webkitEnterFullscreen" in video) {

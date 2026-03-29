@@ -5,6 +5,7 @@ import { listEvents, saveEvent, deleteEvents, getRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateApiSecret, validateSession } from "@/lib/auth";
 import { EVENTS_LIST_TAG, getEventTag } from "@/lib/events-cache";
+import { waitForEventReadiness } from "@/lib/event-readiness";
 import { eventMediaIsAvailable } from "@/lib/media-validation";
 import { notifyGeckoEvent } from "@/lib/notify";
 import type { GeckoEvent } from "@/lib/types";
@@ -67,12 +68,28 @@ export async function POST(request: NextRequest) {
     revalidatePath("/");
     revalidatePath("/events");
     revalidatePath(`/events/${id}`);
-    // Use after() so the function stays alive long enough to send the notification
-    after(() =>
-      notifyGeckoEvent(event).catch((err) =>
-        console.error("notifyGeckoEvent error:", String(err))
-      )
-    );
+    // events.json is blob-backed and can lag briefly across reads; wait until the
+    // event is readable through the same path metadata/OG rendering uses before
+    // sending Slack, then revalidate again to flush any transient misses.
+    after(async () => {
+      const eventReady = await waitForEventReadiness(id);
+      if (!eventReady) {
+        console.warn(`Event ${id} was saved but not readable before Slack notify`);
+        return;
+      }
+
+      revalidateTag(EVENTS_LIST_TAG, "default");
+      revalidateTag(getEventTag(id), "default");
+      revalidatePath("/");
+      revalidatePath("/events");
+      revalidatePath(`/events/${id}`);
+
+      try {
+        await notifyGeckoEvent(event);
+      } catch (err) {
+        console.error("notifyGeckoEvent error:", String(err));
+      }
+    });
     return NextResponse.json({ ok: true, event }, { status: 201 });
   } catch (err) {
     console.error("POST /api/events error:", err);
