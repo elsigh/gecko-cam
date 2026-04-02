@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { rotationStyle } from "@/lib/useStreamRotation";
+import { rotationStyle } from "@/lib/rotation";
 
 interface LiveStreamProps {
   streamUrl: string;

@@ -78,6 +78,25 @@ export async function saveEvent(event: GeckoEvent): Promise<void> {
   await writeBlob("events.json", newList);
 }
 
+export async function setEventRotation(
+  id: string,
+  rotation: Rotation
+): Promise<GeckoEvent | null> {
+  const events = await readEvents();
+  let updated: GeckoEvent | null = null;
+
+  const nextEvents = events.map((event) => {
+    if (event.id !== id) return event;
+    updated = { ...event, rotation };
+    return updated;
+  });
+
+  if (!updated) return null;
+
+  await writeBlob("events.json", nextEvents);
+  return updated;
+}
+
 export async function listEvents(
   cursor?: string
 ): Promise<{ events: GeckoEvent[]; nextCursor: string | null }> {

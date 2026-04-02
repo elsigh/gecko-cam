@@ -2,10 +2,11 @@
 
 import { cookies } from "next/headers";
 import { refresh, revalidatePath, updateTag } from "next/cache";
-import { deleteEvent, deleteEvents } from "@/lib/kv";
+import { deleteEvent, deleteEvents, setEventRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateSessionToken } from "@/lib/auth";
 import { EVENTS_LIST_TAG, getEventTag } from "@/lib/events-cache";
+import type { GeckoEvent, Rotation } from "@/lib/types";
 
 type DeleteResult = {
   ok: boolean;
@@ -15,6 +16,10 @@ type DeleteResult = {
 
 type BatchDeleteResult = DeleteResult & {
   deleted?: number;
+};
+
+type RotateResult = DeleteResult & {
+  event?: GeckoEvent;
 };
 
 function revalidateEventPaths(ids: string[]) {
@@ -90,5 +95,34 @@ export async function deleteEventsAction(ids: string[]): Promise<BatchDeleteResu
   } catch (err) {
     console.error("deleteEventsAction error:", String(err));
     return { ok: false, error: "Failed to delete events", status: 500 };
+  }
+}
+
+export async function rotateEventAction(
+  id: string,
+  rotation: Rotation
+): Promise<RotateResult> {
+  if (!id) return { ok: false, error: "Event id required", status: 400 };
+  if (rotation !== 0 && rotation !== 90 && rotation !== 180 && rotation !== 270) {
+    return { ok: false, error: "Invalid rotation", status: 400 };
+  }
+  if (!(await hasValidSession())) {
+    return { ok: false, error: "Unauthorized", status: 401 };
+  }
+
+  try {
+    const updated = await setEventRotation(id, rotation);
+    if (!updated) {
+      return { ok: false, error: "Event not found", status: 404 };
+    }
+
+    updateEventTags([id]);
+    revalidateEventPaths([id]);
+    refresh();
+
+    return { ok: true, event: updated };
+  } catch (err) {
+    console.error(`rotateEventAction(${id}) error:`, String(err));
+    return { ok: false, error: "Failed to rotate event", status: 500 };
   }
 }

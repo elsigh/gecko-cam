@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { getCachedEvent } from "@/lib/events-cache";
 import { formatEventTimestamp } from "@/lib/event-time";
+import { rotationStyle, rotationTransform } from "@/lib/rotation";
 
 export const alt = "Gecko Cam motion event";
 export const size = { width: 1200, height: 630 };
@@ -17,6 +18,9 @@ export default async function OgImage({
   const date = event ? formatEventTimestamp(event.timestamp) : null;
   const duration = event?.duration ? `${Math.round(event.duration)}s clip` : "Motion event";
   const score = event?.motionScore ? `score ${Math.round(event.motionScore)}` : null;
+  const rotation = event?.rotation ?? 0;
+  const imageStyle = rotationStyle(rotation);
+  const backgroundTransform = rotationTransform(rotation);
 
   return new ImageResponse(
     (
@@ -43,7 +47,9 @@ export default async function OgImage({
               height: "100%",
               objectFit: "cover",
               filter: "blur(24px) saturate(1.15)",
-              transform: "scale(1.08)",
+              transform: backgroundTransform
+                ? `${backgroundTransform} scale(1.08)`
+                : "scale(1.08)",
               opacity: 0.65,
             }}
           />
@@ -90,6 +96,7 @@ export default async function OgImage({
                   width: "100%",
                   height: "100%",
                   objectFit: "cover",
+                  ...imageStyle,
                 }}
               />
             )}

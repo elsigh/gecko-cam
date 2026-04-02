@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { deleteEventAction } from "@/app/actions/events";
+import { deleteEventAction, rotateEventAction } from "@/app/actions/events";
 import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
 } from "@/lib/optimistic-event-deletions";
 import { formatEventTimestamp } from "@/lib/event-time";
-import type { GeckoEvent } from "@/lib/types";
-import { rotationStyle } from "@/lib/useStreamRotation";
+import { rotationStyle } from "@/lib/rotation";
+import type { GeckoEvent, Rotation } from "@/lib/types";
 
 interface EventNavigationTarget {
   id: string;
@@ -42,7 +42,15 @@ export default function EventVideoView({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [rotating, setRotating] = useState(false);
+  const [rotation, setRotation] = useState<Rotation>(event.rotation ?? 0);
   const [mediaError, setMediaError] = useState(false);
+
+  useEffect(() => {
+    setRotation(event.rotation ?? 0);
+    setRotating(false);
+    setMediaError(false);
+  }, [event.id, event.rotation]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -134,6 +142,36 @@ export default function EventVideoView({
       rollbackOptimisticallyDeletedEvent(event.id);
       alert("Network error.");
       setDeleting(false);
+    }
+  }
+
+  async function handleRotate() {
+    if (rotating) return;
+
+    const previousRotation = rotation;
+    const nextRotation = ((rotation + 90) % 360) as Rotation;
+
+    setRotating(true);
+    setRotation(nextRotation);
+
+    try {
+      const result = await rotateEventAction(event.id, nextRotation);
+      if (result.ok) {
+        setRotation(result.event?.rotation ?? nextRotation);
+        router.refresh();
+        return;
+      }
+
+      setRotation(previousRotation);
+      const msg = result.status === 401
+        ? "Not authorized. Log in first to rotate events."
+        : "Failed to rotate event.";
+      alert(msg);
+    } catch {
+      setRotation(previousRotation);
+      alert("Network error.");
+    } finally {
+      setRotating(false);
     }
   }
 
@@ -240,6 +278,30 @@ export default function EventVideoView({
           {canDelete && (
             <button
               type="button"
+              onClick={handleRotate}
+              disabled={deleting || rotating}
+              className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 disabled:opacity-40 transition-colors"
+              title="Rotate clip 90°"
+              aria-label="Rotate clip 90 degrees"
+            >
+              {rotating ? (
+                <span className="inline-block w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" aria-hidden />
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <title>Rotate clip</title>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 3h6v6M9 21H6a3 3 0 01-3-3V6m18 3a9 9 0 11-9 9"
+                  />
+                </svg>
+              )}
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
               onClick={handleDelete}
               disabled={deleting}
               className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-white/10 disabled:opacity-40 transition-colors"
@@ -293,7 +355,7 @@ export default function EventVideoView({
             src={event.clipUrl}
             poster={event.thumbnailUrl}
             className="max-w-full max-h-full object-contain transition-transform duration-300"
-            style={rotationStyle(event.rotation ?? 0)}
+            style={rotationStyle(rotation)}
             controls
             autoPlay
             playsInline

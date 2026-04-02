@@ -10,9 +10,9 @@ import {
   rollbackOptimisticallyDeletedEvent,
   useOptimisticallyDeletedEventIds,
 } from "@/lib/optimistic-event-deletions";
+import { rotationStyle } from "@/lib/rotation";
 import { formatEventTime, formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
-import { rotationStyle } from "@/lib/useStreamRotation";
 
 interface EventCardProps {
   event: GeckoEvent;
