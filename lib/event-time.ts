@@ -6,6 +6,7 @@ const eventTimestampFormatter = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
   hour12: true,
+  timeZoneName: "short",
   timeZone: EVENT_TIME_ZONE,
 });
 
@@ -20,6 +21,7 @@ const eventTimeFormatter = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
   hour12: true,
+  timeZoneName: "short",
   timeZone: EVENT_TIME_ZONE,
 });
 
