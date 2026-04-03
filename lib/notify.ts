@@ -20,6 +20,7 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
   const text = [
     `🦎 MauMau spotted!${score}`,
     detailBits.length > 0 ? detailBits.join(" · ") : null,
+    eventUrl,
   ]
     .filter(Boolean)
     .join("\n");
@@ -41,25 +42,11 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
               text: [
                 `*🦎 MauMau spotted!*${score}`,
                 detailBits.length > 0 ? detailBits.join(" · ") : null,
+                `<${eventUrl}|Open event page>`,
               ]
                 .filter(Boolean)
                 .join("\n"),
           },
-        },
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: {
-                type: "plain_text",
-                text: "Open Event",
-                emoji: true,
-              },
-              url: eventUrl,
-              style: "primary",
-            },
-          ],
         },
       ],
     }),
