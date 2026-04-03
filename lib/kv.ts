@@ -4,6 +4,7 @@ import type { GeckoEvent, Rotation } from "./types";
 const MAX_EVENTS = 200;
 const PAGE_SIZE = 12;
 const BLOB_PREFIX = "gecko-cam-data";
+const FAVORITES_FILENAME = "favorites.json";
 
 function getBaseUrl(): string {
   const token = process.env.BLOB_READ_WRITE_TOKEN ?? "";
@@ -68,8 +69,25 @@ async function readEvents(): Promise<GeckoEvent[]> {
   return events ?? [];
 }
 
+async function readFavoriteIds(): Promise<Set<string>> {
+  const ids = await readBlob<string[]>(FAVORITES_FILENAME);
+  return new Set(Array.isArray(ids) ? ids : []);
+}
+
+async function writeFavoriteIds(ids: Set<string>): Promise<void> {
+  await writeBlob(FAVORITES_FILENAME, [...ids]);
+}
+
+function applyFavorites(events: GeckoEvent[], favoriteIds: Set<string>): GeckoEvent[] {
+  return events.map((event) => ({
+    ...event,
+    favorite: favoriteIds.has(event.id) || Boolean(event.favorite),
+  }));
+}
+
 export async function listAllEvents(): Promise<GeckoEvent[]> {
-  return readEvents();
+  const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
+  return applyFavorites(events, favoriteIds);
 }
 
 export async function saveEvent(event: GeckoEvent): Promise<void> {
@@ -101,25 +119,25 @@ export async function setEventFavorite(
   id: string,
   favorite: boolean
 ): Promise<GeckoEvent | null> {
-  const events = await readEvents();
-  let updated: GeckoEvent | null = null;
+  const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
+  const event = events.find((current) => current.id === id);
+  if (!event) return null;
 
-  const nextEvents = events.map((event) => {
-    if (event.id !== id) return event;
-    updated = { ...event, favorite };
-    return updated;
-  });
+  if (favorite) {
+    favoriteIds.add(id);
+  } else {
+    favoriteIds.delete(id);
+  }
 
-  if (!updated) return null;
-
-  await writeBlob("events.json", nextEvents);
-  return updated;
+  await writeFavoriteIds(favoriteIds);
+  return { ...event, favorite };
 }
 
 export async function listEvents(
   cursor?: string
 ): Promise<{ events: GeckoEvent[]; nextCursor: string | null }> {
-  const allEvents = await readEvents();
+  const [storedEvents, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
+  const allEvents = applyFavorites(storedEvents, favoriteIds);
   const offset = cursor ? parseInt(cursor, 10) : 0;
   const page = allEvents.slice(offset, offset + PAGE_SIZE);
   const hasMore = offset + PAGE_SIZE < allEvents.length;
@@ -130,23 +148,39 @@ export async function listEvents(
 }
 
 export async function deleteEvent(id: string): Promise<GeckoEvent | null> {
-  const events = await readEvents();
+  const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
   const event = events.find((e) => e.id === id);
   if (!event) return null;
-  await writeBlob("events.json", events.filter((e) => e.id !== id));
-  return event;
+  favoriteIds.delete(id);
+  await Promise.all([
+    writeBlob("events.json", events.filter((e) => e.id !== id)),
+    writeFavoriteIds(favoriteIds),
+  ]);
+  return { ...event, favorite: favoriteIds.has(id) || Boolean(event.favorite) };
 }
 
 export async function deleteEvents(ids: string[]): Promise<GeckoEvent[]> {
   const idSet = new Set(ids);
-  const events = await readEvents();
+  const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
   const removed = events.filter((e) => idSet.has(e.id));
   if (removed.length === 0) return [];
-  await writeBlob("events.json", events.filter((e) => !idSet.has(e.id)));
-  return removed;
+  for (const id of idSet) favoriteIds.delete(id);
+  await Promise.all([
+    writeBlob("events.json", events.filter((e) => !idSet.has(e.id))),
+    writeFavoriteIds(favoriteIds),
+  ]);
+  return removed.map((event) => ({
+    ...event,
+    favorite: favoriteIds.has(event.id) || Boolean(event.favorite),
+  }));
 }
 
 export async function getEvent(id: string): Promise<GeckoEvent | null> {
-  const events = await readEvents();
-  return events.find((e) => e.id === id) ?? null;
+  const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
+  const event = events.find((e) => e.id === id);
+  if (!event) return null;
+  return {
+    ...event,
+    favorite: favoriteIds.has(id) || Boolean(event.favorite),
+  };
 }
