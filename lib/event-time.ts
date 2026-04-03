@@ -1,4 +1,4 @@
-const EVENT_TIME_ZONE = "America/Phoenix";
+const EVENT_TIME_ZONE = "America/Los_Angeles";
 
 const eventTimestampFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
