@@ -255,8 +255,8 @@ export default function EventVideoView({
       className="flex flex-col min-h-[80vh] bg-black rounded-lg"
       aria-label={`Watch event from ${formatEventTimestamp(event.timestamp)}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 bg-gray-900/90 p-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-gray-800 bg-gray-900/90 p-3">
+        <div className="min-w-0">
           {deleting ? (
             <span className="flex items-center gap-2 text-sm text-gray-500 cursor-wait">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -277,7 +277,10 @@ export default function EventVideoView({
               {backLabel}
             </Link>
           )}
-          <div className="flex flex-wrap items-center gap-2">
+        </div>
+
+        <div className="flex min-w-0 justify-center">
+          <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
             {navigation?.older && (
               <NavigationButton
                 href={`/events/${navigation.older.id}`}
@@ -286,6 +289,18 @@ export default function EventVideoView({
                 direction="left"
               />
             )}
+
+            <div className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-center">
+              <p className="truncate text-sm text-white/90">
+                {formatEventTimestamp(event.timestamp)}
+              </p>
+              {favorite && (
+                <p className="text-[11px] uppercase tracking-[0.24em] text-amber-300">
+                  Favorited
+                </p>
+              )}
+            </div>
+
             {navigation?.newer && (
               <NavigationButton
                 href={`/events/${navigation.newer.id}`}
@@ -296,17 +311,8 @@ export default function EventVideoView({
             )}
           </div>
         </div>
-        <div className="min-w-0 text-center">
-          <p className="truncate text-sm text-white/90">
-            {formatEventTimestamp(event.timestamp)}
-          </p>
-          {favorite && (
-            <p className="text-[11px] uppercase tracking-[0.24em] text-amber-300">
-              Favorited
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
+
+        <div className="flex items-center justify-end gap-1">
           {canDelete && (
             <button
               type="button"
