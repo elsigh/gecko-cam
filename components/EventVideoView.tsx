@@ -291,6 +291,9 @@ export default function EventVideoView({
             )}
 
             <div className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-center">
+              <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-500">
+                This Event
+              </p>
               <p className="truncate text-sm text-white/90">
                 {formatEventTimestamp(event.timestamp)}
               </p>
