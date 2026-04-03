@@ -249,6 +249,27 @@ export default function EventVideoView({
     );
   }
 
+  function NavigationPlaceholder({
+    label,
+    description,
+  }: {
+    label: string;
+    description: string;
+  }) {
+    return (
+      <div className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-left text-gray-500">
+        <span className="min-w-0">
+          <span className="block text-[11px] font-medium uppercase tracking-[0.24em] text-gray-600">
+            {label}
+          </span>
+          <span className="block truncate text-sm text-gray-500">
+            {description}
+          </span>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <section
       ref={containerRef}
@@ -281,12 +302,17 @@ export default function EventVideoView({
 
         <div className="flex min-w-0 justify-center">
           <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
-            {navigation?.newer && (
+            {navigation?.newer ? (
               <NavigationButton
                 href={`/events/${navigation.newer.id}`}
                 label="After"
                 timestamp={navigation.newer.timestamp}
                 direction="left"
+              />
+            ) : (
+              <NavigationPlaceholder
+                label="After"
+                description="On latest event"
               />
             )}
 
@@ -304,12 +330,17 @@ export default function EventVideoView({
               )}
             </div>
 
-            {navigation?.older && (
+            {navigation?.older ? (
               <NavigationButton
                 href={`/events/${navigation.older.id}`}
                 label="Before"
                 timestamp={navigation.older.timestamp}
                 direction="right"
+              />
+            ) : (
+              <NavigationPlaceholder
+                label="Before"
+                description="On earliest event"
               />
             )}
           </div>
