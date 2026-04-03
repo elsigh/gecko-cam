@@ -28,10 +28,46 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
 
   // Load persisted rotation on mount
   useEffect(() => {
-    localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
-    const saved = parseInt(localStorage.getItem(STREAM_ROTATION_STORAGE_KEY) ?? "0");
-    if (saved === 90 || saved === 180 || saved === 270) setRotation(saved);
-    setRotationReady(true);
+    let cancelled = false;
+
+    async function loadRotation() {
+      const saved = parseInt(
+        localStorage.getItem(STREAM_ROTATION_STORAGE_KEY)
+          ?? localStorage.getItem(LEGACY_STREAM_ROTATION_STORAGE_KEY)
+          ?? "0"
+      );
+      if (saved === 90 || saved === 180 || saved === 270) {
+        setRotation(saved);
+        setRotationReady(true);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/rotation", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error(`rotation fetch failed: ${response.status}`);
+        const data: { rotation?: number } = await response.json();
+        if (cancelled) return;
+        const fetched = data.rotation;
+        if (fetched === 90 || fetched === 180 || fetched === 270) {
+          setRotation(fetched);
+          localStorage.setItem(STREAM_ROTATION_STORAGE_KEY, String(fetched));
+          localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
+        }
+      } catch {
+        // Fall back to the default orientation when the server rotation can't be read.
+      } finally {
+        if (!cancelled) setRotationReady(true);
+      }
+    }
+
+    void loadRotation();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Ticking clock
@@ -152,6 +188,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     setRotation((r) => {
       const next = ((r + 90) % 360) as 0 | 90 | 180 | 270;
       localStorage.setItem(STREAM_ROTATION_STORAGE_KEY, String(next));
+      localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
       fetch("/api/rotation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
