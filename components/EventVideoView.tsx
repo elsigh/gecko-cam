@@ -74,14 +74,14 @@ export default function EventVideoView({
 
       if (deleting || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
 
-      if (e.key === "ArrowLeft" && navigation?.older) {
-        e.preventDefault();
-        router.push(`/events/${navigation.older.id}`);
-      }
-
-      if (e.key === "ArrowRight" && navigation?.newer) {
+      if (e.key === "ArrowLeft" && navigation?.newer) {
         e.preventDefault();
         router.push(`/events/${navigation.newer.id}`);
+      }
+
+      if (e.key === "ArrowRight" && navigation?.older) {
+        e.preventDefault();
+        router.push(`/events/${navigation.older.id}`);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -281,11 +281,11 @@ export default function EventVideoView({
 
         <div className="flex min-w-0 justify-center">
           <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
-            {navigation?.older && (
+            {navigation?.newer && (
               <NavigationButton
-                href={`/events/${navigation.older.id}`}
-                label="Before"
-                timestamp={navigation.older.timestamp}
+                href={`/events/${navigation.newer.id}`}
+                label="After"
+                timestamp={navigation.newer.timestamp}
                 direction="left"
               />
             )}
@@ -304,11 +304,11 @@ export default function EventVideoView({
               )}
             </div>
 
-            {navigation?.newer && (
+            {navigation?.older && (
               <NavigationButton
-                href={`/events/${navigation.newer.id}`}
-                label="After"
-                timestamp={navigation.newer.timestamp}
+                href={`/events/${navigation.older.id}`}
+                label="Before"
+                timestamp={navigation.older.timestamp}
                 direction="right"
               />
             )}
