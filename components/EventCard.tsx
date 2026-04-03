@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { deleteEventAction } from "@/app/actions/events";
+import { deleteEventAction, setFavoriteEventAction } from "@/app/actions/events";
 import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
@@ -17,11 +17,12 @@ import type { GeckoEvent } from "@/lib/types";
 interface EventCardProps {
   event: GeckoEvent;
   onDelete?: (id: string) => void;
+  onFavoriteChange?: (id: string, favorite: boolean) => void;
   timestampLabel?: string;
-  // Selection mode
   selectable?: boolean;
   selected?: boolean;
   onSelect?: (id: string) => void;
+  canManage?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -33,15 +34,23 @@ function formatDuration(seconds: number): string {
 export default function EventCard({
   event,
   onDelete,
+  onFavoriteChange,
   timestampLabel = formatEventTimestamp(event.timestamp),
   selectable,
   selected,
   onSelect,
+  canManage = false,
 }: EventCardProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
+  const [favorite, setFavorite] = useState(Boolean(event.favorite));
   const [imageBroken, setImageBroken] = useState(false);
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
+
+  useEffect(() => {
+    setFavorite(Boolean(event.favorite));
+  }, [event.favorite]);
 
   if (optimisticallyDeletedIds.has(event.id)) {
     return null;
@@ -72,6 +81,36 @@ export default function EventCard({
       rollbackOptimisticallyDeletedEvent(event.id);
       alert("Network error.");
       setDeleting(false);
+    }
+  }
+
+  async function handleFavorite(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (favoriting) return;
+
+    const previousFavorite = favorite;
+    const nextFavorite = !favorite;
+    setFavoriting(true);
+    setFavorite(nextFavorite);
+
+    try {
+      const result = await setFavoriteEventAction(event.id, nextFavorite);
+      if (result.ok) {
+        const persistedFavorite = Boolean(result.event?.favorite ?? nextFavorite);
+        setFavorite(persistedFavorite);
+        onFavoriteChange?.(event.id, persistedFavorite);
+        router.refresh();
+        return;
+      }
+
+      setFavorite(previousFavorite);
+      alert(result.status === 401 ? "Not authorized." : "Failed to update favorite.");
+    } catch {
+      setFavorite(previousFavorite);
+      alert("Network error.");
+    } finally {
+      setFavoriting(false);
     }
   }
 
@@ -114,6 +153,33 @@ export default function EventCard({
           </div>
         </div>
       )}
+      {canManage && !selectable && (
+        <button
+          type="button"
+          onClick={handleFavorite}
+          disabled={favoriting}
+          aria-label={favorite ? "Remove favorite" : "Add favorite"}
+          title={favorite ? "Remove favorite" : "Add favorite"}
+          className={`absolute top-2 right-2 z-10 rounded-full border px-2.5 py-1.5 backdrop-blur transition-colors ${
+            favorite
+              ? "border-amber-300/60 bg-amber-400/20 text-amber-200"
+              : "border-white/20 bg-black/45 text-gray-200 hover:border-white/35 hover:text-white"
+          } disabled:opacity-50`}
+        >
+          {favoriting ? (
+            <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+          ) : (
+            <svg className="h-4 w-4" fill={favorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.318 4.056a1 1 0 00.95.69h4.266c.969 0 1.371 1.24.588 1.81l-3.452 2.508a1 1 0 00-.364 1.118l1.318 4.056c.3.921-.755 1.688-1.538 1.118l-3.452-2.508a1 1 0 00-1.176 0l-3.452 2.508c-.783.57-1.838-.197-1.539-1.118l1.319-4.056a1 1 0 00-.364-1.118L2.98 9.483c-.783-.57-.38-1.81.588-1.81H7.83a1 1 0 00.95-.69z"
+              />
+            </svg>
+          )}
+        </button>
+      )}
     </div>
   );
 
@@ -139,23 +205,34 @@ export default function EventCard({
           </p>
         </div>
 
-        {!selectable && onDelete && (
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={deleting}
-            className="text-gray-500 hover:text-red-400 transition-colors disabled:opacity-40 p-1"
-            title="Delete event"
-          >
-            {deleting ? (
-              <span className="inline-block w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" aria-hidden />
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <title>Delete event</title>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+        {!selectable && (
+          <div className="flex items-center gap-1">
+            {favorite && (
+              <span className="text-amber-300" title="Favorite" aria-label="Favorite">
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.318 4.056a1 1 0 00.95.69h4.266c.969 0 1.371 1.24.588 1.81l-3.452 2.508a1 1 0 00-.364 1.118l1.318 4.056c.3.921-.755 1.688-1.538 1.118l-3.452-2.508a1 1 0 00-1.176 0l-3.452 2.508c-.783.57-1.838-.197-1.539-1.118l1.319-4.056a1 1 0 00-.364-1.118L2.98 9.483c-.783-.57-.38-1.81.588-1.81H7.83a1 1 0 00.95-.69z" />
+                </svg>
+              </span>
             )}
-          </button>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-gray-500 hover:text-red-400 transition-colors disabled:opacity-40 p-1"
+                title="Delete event"
+              >
+                {deleting ? (
+                  <span className="inline-block w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" aria-hidden />
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <title>Delete event</title>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

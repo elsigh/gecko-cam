@@ -17,6 +17,17 @@ export async function getCachedRecentEvents(limit: number) {
   return events.slice(0, limit);
 }
 
+export async function getCachedFavoriteEvents(limit?: number) {
+  "use cache";
+
+  cacheLife("seconds");
+  cacheTag(EVENTS_LIST_TAG);
+
+  const events = await listAllEvents();
+  const favorites = events.filter((event) => event.favorite);
+  return typeof limit === "number" ? favorites.slice(0, limit) : favorites;
+}
+
 export async function getCachedEventsPage(cursor?: string) {
   "use cache";
 

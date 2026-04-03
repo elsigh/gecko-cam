@@ -16,9 +16,26 @@ import type { GeckoEvent, EventListResponse } from "@/lib/types";
 interface Props {
   initialEvents: GeckoEvent[];
   initialCursor: string | null;
+  canManage?: boolean;
+  favoritesOnly?: boolean;
+  title?: string;
+  emptyTitle?: string;
+  emptyBody?: string;
+  backHref?: string;
+  backLabel?: string;
 }
 
-export default function EventsClient({ initialEvents, initialCursor }: Props) {
+export default function EventsClient({
+  initialEvents,
+  initialCursor,
+  canManage = false,
+  favoritesOnly = false,
+  title = "All Events",
+  emptyTitle = "No motion events recorded yet.",
+  emptyBody = "Events appear automatically when motion is detected.",
+  backHref = "/",
+  backLabel = "← Live",
+}: Props) {
   const router = useRouter();
   const [events, setEvents] = useState<GeckoEvent[]>(initialEvents);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
@@ -32,7 +49,9 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
   const [deleting, setDeleting] = useState(false);
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
   const optimisticallyDeletedIdsKey = [...optimisticallyDeletedIds].sort().join(",");
-  const visibleEvents = events.filter((event) => !optimisticallyDeletedIds.has(event.id));
+  const visibleEvents = events.filter((event) => (
+    !optimisticallyDeletedIds.has(event.id) && (!favoritesOnly || event.favorite)
+  ));
   const daySections: Array<{ dateLabel: string; events: GeckoEvent[] }> = [];
 
   for (const event of visibleEvents) {
@@ -97,6 +116,12 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
       next.delete(id);
       return next;
     });
+  }
+
+  function handleFavoriteChange(id: string, favorite: boolean) {
+    setEvents((prev) => prev.map((event) => (
+      event.id === id ? { ...event, favorite } : event
+    )));
   }
 
   function toggleSelect(id: string) {
@@ -208,11 +233,11 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
           </>
         ) : (
           <>
-            <Link href="/" className="text-gray-400 hover:text-gray-200 transition-colors text-sm">
-              ← Live
+            <Link href={backHref} className="text-gray-400 hover:text-gray-200 transition-colors text-sm">
+              {backLabel}
             </Link>
-            <h2 className="text-lg font-semibold">All Events</h2>
-            {visibleEvents.length > 0 && (
+            <h2 className="text-lg font-semibold">{title}</h2>
+            {visibleEvents.length > 0 && canManage && (
               <button
                 onClick={() => setSelectMode(true)}
                 className="ml-auto text-xs text-gray-400 hover:text-gray-200 transition-colors"
@@ -226,9 +251,9 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
 
       {visibleEvents.length === 0 && !cursor && (
         <div className="text-center py-20">
-          <p className="text-gray-500">No motion events recorded yet.</p>
+          <p className="text-gray-500">{favoritesOnly ? "No favorite clips yet." : emptyTitle}</p>
           <p className="text-gray-600 text-sm mt-1">
-            Events appear automatically when motion is detected.
+            {favoritesOnly ? "Star the clips you want to keep handy, and they will show up here." : emptyBody}
           </p>
         </div>
       )}
@@ -248,10 +273,12 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
                   key={event.id}
                   event={event}
                   timestampLabel={formatEventTime(event.timestamp)}
-                  onDelete={selectMode ? undefined : handleDelete}
+                  onDelete={canManage && !selectMode ? handleDelete : undefined}
+                  onFavoriteChange={handleFavoriteChange}
                   selectable={selectMode}
                   selected={selected.has(event.id)}
                   onSelect={toggleSelect}
+                  canManage={canManage}
                 />
               ))}
             </div>
@@ -260,7 +287,7 @@ export default function EventsClient({ initialEvents, initialCursor }: Props) {
       </div>
 
       <div ref={loaderRef} className="h-12 flex items-center justify-center mt-4">
-        {loading && (
+        {!favoritesOnly && loading && (
           <span className="inline-block w-5 h-5 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
         )}
       </div>

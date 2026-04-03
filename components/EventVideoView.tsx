@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { deleteEventAction, rotateEventAction } from "@/app/actions/events";
+import { deleteEventAction, rotateEventAction, setFavoriteEventAction } from "@/app/actions/events";
 import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
@@ -44,13 +44,17 @@ export default function EventVideoView({
   const [deleting, setDeleting] = useState(false);
   const [rotating, setRotating] = useState(false);
   const [rotation, setRotation] = useState<Rotation>(event.rotation ?? 0);
+  const [favorite, setFavorite] = useState(Boolean(event.favorite));
+  const [favoriting, setFavoriting] = useState(false);
   const [mediaError, setMediaError] = useState(false);
 
   useEffect(() => {
     setRotation(event.rotation ?? 0);
+    setFavorite(Boolean(event.favorite));
     setRotating(false);
+    setFavoriting(false);
     setMediaError(false);
-  }, [event.id, event.rotation]);
+  }, [event.favorite, event.id, event.rotation]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -175,6 +179,34 @@ export default function EventVideoView({
     }
   }
 
+  async function handleFavorite() {
+    if (favoriting) return;
+
+    const previousFavorite = favorite;
+    const nextFavorite = !favorite;
+    setFavoriting(true);
+    setFavorite(nextFavorite);
+
+    try {
+      const result = await setFavoriteEventAction(event.id, nextFavorite);
+      if (result.ok) {
+        setFavorite(Boolean(result.event?.favorite ?? nextFavorite));
+        router.refresh();
+        return;
+      }
+
+      setFavorite(previousFavorite);
+      alert(result.status === 401
+        ? "Not authorized. Log in first to favorite events."
+        : "Failed to update favorite.");
+    } catch {
+      setFavorite(previousFavorite);
+      alert("Network error.");
+    } finally {
+      setFavoriting(false);
+    }
+  }
+
   function NavigationButton({
     href,
     label,
@@ -273,8 +305,41 @@ export default function EventVideoView({
               Use Left/Right Arrow Keys
             </p>
           )}
+          {favorite && (
+            <p className="text-[11px] uppercase tracking-[0.24em] text-amber-300">
+              Favorited
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1">
+          {canDelete && (
+            <button
+              type="button"
+              onClick={handleFavorite}
+              disabled={deleting || favoriting}
+              className={`p-2 rounded-lg transition-colors disabled:opacity-40 ${
+                favorite
+                  ? "text-amber-300 hover:text-amber-200 hover:bg-amber-400/10"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
+              }`}
+              title={favorite ? "Remove favorite" : "Add favorite"}
+              aria-label={favorite ? "Remove favorite" : "Add favorite"}
+            >
+              {favoriting ? (
+                <span className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" aria-hidden />
+              ) : (
+                <svg className="w-5 h-5" fill={favorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <title>{favorite ? "Favorite clip" : "Add favorite"}</title>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.318 4.056a1 1 0 00.95.69h4.266c.969 0 1.371 1.24.588 1.81l-3.452 2.508a1 1 0 00-.364 1.118l1.318 4.056c.3.921-.755 1.688-1.538 1.118l-3.452-2.508a1 1 0 00-1.176 0l-3.452 2.508c-.783.57-1.838-.197-1.539-1.118l1.319-4.056a1 1 0 00-.364-1.118L2.98 9.483c-.783-.57-.38-1.81.588-1.81H7.83a1 1 0 00.95-.69z"
+                  />
+                </svg>
+              )}
+            </button>
+          )}
           {canDelete && (
             <button
               type="button"

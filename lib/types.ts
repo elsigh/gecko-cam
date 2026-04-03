@@ -8,6 +8,7 @@ export interface GeckoEvent {
   duration: number; // seconds
   motionScore: number;
   rotation?: Rotation; // display rotation at capture time
+  favorite?: boolean;
 }
 
 export interface EventListResponse {

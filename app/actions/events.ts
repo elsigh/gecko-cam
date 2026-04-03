@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { refresh, revalidatePath, updateTag } from "next/cache";
-import { deleteEvent, deleteEvents, setEventRotation } from "@/lib/kv";
+import { deleteEvent, deleteEvents, setEventFavorite, setEventRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateSessionToken } from "@/lib/auth";
 import { EVENTS_LIST_TAG, getEventTag } from "@/lib/events-cache";
@@ -124,5 +124,32 @@ export async function rotateEventAction(
   } catch (err) {
     console.error(`rotateEventAction(${id}) error:`, String(err));
     return { ok: false, error: "Failed to rotate event", status: 500 };
+  }
+}
+
+export async function setFavoriteEventAction(
+  id: string,
+  favorite: boolean
+): Promise<RotateResult> {
+  if (!id) return { ok: false, error: "Event id required", status: 400 };
+  if (!(await hasValidSession())) {
+    return { ok: false, error: "Unauthorized", status: 401 };
+  }
+
+  try {
+    const updated = await setEventFavorite(id, favorite);
+    if (!updated) {
+      return { ok: false, error: "Event not found", status: 404 };
+    }
+
+    updateEventTags([id]);
+    revalidateEventPaths([id]);
+    revalidatePath("/favorites");
+    refresh();
+
+    return { ok: true, event: updated };
+  } catch (err) {
+    console.error(`setFavoriteEventAction(${id}) error:`, String(err));
+    return { ok: false, error: "Failed to update favorite", status: 500 };
   }
 }

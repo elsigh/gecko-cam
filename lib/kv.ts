@@ -97,6 +97,25 @@ export async function setEventRotation(
   return updated;
 }
 
+export async function setEventFavorite(
+  id: string,
+  favorite: boolean
+): Promise<GeckoEvent | null> {
+  const events = await readEvents();
+  let updated: GeckoEvent | null = null;
+
+  const nextEvents = events.map((event) => {
+    if (event.id !== id) return event;
+    updated = { ...event, favorite };
+    return updated;
+  });
+
+  if (!updated) return null;
+
+  await writeBlob("events.json", nextEvents);
+  return updated;
+}
+
 export async function listEvents(
   cursor?: string
 ): Promise<{ events: GeckoEvent[]; nextCursor: string | null }> {
