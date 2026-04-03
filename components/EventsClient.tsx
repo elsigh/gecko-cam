@@ -118,12 +118,6 @@ export default function EventsClient({
     });
   }
 
-  function handleFavoriteChange(id: string, favorite: boolean) {
-    setEvents((prev) => prev.map((event) => (
-      event.id === id ? { ...event, favorite } : event
-    )));
-  }
-
   function toggleSelect(id: string) {
     const index = visibleEvents.findIndex((event) => event.id === id);
     if (index === -1) return;
@@ -274,11 +268,9 @@ export default function EventsClient({
                   event={event}
                   timestampLabel={formatEventTime(event.timestamp)}
                   onDelete={canManage && !selectMode ? handleDelete : undefined}
-                  onFavoriteChange={handleFavoriteChange}
                   selectable={selectMode}
                   selected={selected.has(event.id)}
                   onSelect={toggleSelect}
-                  canManage={canManage}
                 />
               ))}
             </div>

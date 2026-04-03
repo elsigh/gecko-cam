@@ -1,43 +1,15 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import LiveStream from "@/components/LiveStream";
 import StreamStatus from "@/components/StreamStatus";
 import EventCard from "@/components/EventCard";
-import { getCachedFavoriteEvents, getCachedRecentEvents } from "@/lib/events-cache";
-import { validateSessionToken } from "@/lib/auth";
+import { getCachedRecentEvents } from "@/lib/events-cache";
 
 async function RecentEventsSidebar() {
-  const cookieStore = await cookies();
-  const canManage = validateSessionToken(cookieStore.get("gecko_session")?.value);
-  const [favorites, recent] = await Promise.all([
-    getCachedFavoriteEvents(4),
-    getCachedRecentEvents(6),
-  ]);
+  const recent = await getCachedRecentEvents(6);
 
   return (
     <>
-      {favorites.length > 0 && (
-        <>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium uppercase tracking-wider text-amber-300">
-              Favorites
-            </h2>
-            <Link
-              href="/favorites"
-              className="text-xs text-amber-300 hover:text-amber-200 transition-colors"
-            >
-              View all →
-            </Link>
-          </div>
-          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-1 xl:grid-cols-2">
-            {favorites.map((event) => (
-              <EventCard key={event.id} event={event} canManage={canManage} />
-            ))}
-          </div>
-        </>
-      )}
-
       {recent.length > 0 && (
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
@@ -67,7 +39,7 @@ async function RecentEventsSidebar() {
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
           {recent.map((event) => (
-            <EventCard key={event.id} event={event} canManage={canManage} />
+            <EventCard key={event.id} event={event} />
           ))}
         </div>
       )}
