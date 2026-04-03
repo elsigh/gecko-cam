@@ -281,7 +281,7 @@ export default function EventVideoView({
             {navigation?.older && (
               <NavigationButton
                 href={`/events/${navigation.older.id}`}
-                label="Older"
+                label="Before"
                 timestamp={navigation.older.timestamp}
                 direction="left"
               />
@@ -289,7 +289,7 @@ export default function EventVideoView({
             {navigation?.newer && (
               <NavigationButton
                 href={`/events/${navigation.newer.id}`}
-                label="Newer"
+                label="After"
                 timestamp={navigation.newer.timestamp}
                 direction="right"
               />
@@ -300,11 +300,6 @@ export default function EventVideoView({
           <p className="truncate text-sm text-white/90">
             {formatEventTimestamp(event.timestamp)}
           </p>
-          {(navigation?.older || navigation?.newer) && (
-            <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
-              Use Left/Right Arrow Keys
-            </p>
-          )}
           {favorite && (
             <p className="text-[11px] uppercase tracking-[0.24em] text-amber-300">
               Favorited
