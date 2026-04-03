@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { rotationStyle } from "@/lib/rotation";
+import {
+  LEGACY_STREAM_ROTATION_STORAGE_KEY,
+  rotationStyle,
+  STREAM_ROTATION_STORAGE_KEY,
+} from "@/lib/rotation";
 
 interface LiveStreamProps {
   streamUrl: string;
@@ -24,7 +28,8 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
 
   // Load persisted rotation on mount
   useEffect(() => {
-    const saved = parseInt(localStorage.getItem("stream-rotation") ?? "0");
+    localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
+    const saved = parseInt(localStorage.getItem(STREAM_ROTATION_STORAGE_KEY) ?? "0");
     if (saved === 90 || saved === 180 || saved === 270) setRotation(saved);
     setRotationReady(true);
   }, []);
@@ -146,7 +151,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
   function handleRotate() {
     setRotation((r) => {
       const next = ((r + 90) % 360) as 0 | 90 | 180 | 270;
-      localStorage.setItem("stream-rotation", String(next));
+      localStorage.setItem(STREAM_ROTATION_STORAGE_KEY, String(next));
       fetch("/api/rotation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

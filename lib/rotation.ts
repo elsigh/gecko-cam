@@ -1,6 +1,9 @@
 import type { CSSProperties } from "react";
 import type { Rotation } from "@/lib/types";
 
+export const STREAM_ROTATION_STORAGE_KEY = "stream-rotation-v2";
+export const LEGACY_STREAM_ROTATION_STORAGE_KEY = "stream-rotation";
+
 export function rotationTransform(rotation: Rotation): string | undefined {
   if (rotation === 0) return undefined;
   if (rotation === 180) return "rotate(180deg)";
