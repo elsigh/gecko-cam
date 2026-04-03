@@ -218,7 +218,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     >
       <video
         ref={videoRef}
-        className={`w-full h-full object-contain transition-[transform,opacity] duration-300 ${rotationReady ? "opacity-100" : "opacity-0"}`}
+        className={`w-full h-full object-contain transition-opacity duration-300 ${rotationReady ? "opacity-100" : "opacity-0"}`}
         style={rotationStyle(rotation)}
         muted
         playsInline
