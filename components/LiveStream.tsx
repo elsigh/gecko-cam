@@ -12,6 +12,7 @@ const CONNECT_TIMEOUT_MS = 15000; // give up and retry if no response in 15s
 const RETRY_DELAY_MS = 5000;
 
 export default function LiveStream({ streamUrl }: LiveStreamProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
@@ -157,19 +158,22 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
   }
 
   function handleFullscreen() {
+    const container = containerRef.current;
     const video = videoRef.current;
-    if (!video) return;
-    if (video.requestFullscreen) {
-      void video.requestFullscreen();
-    } else if ("webkitRequestFullscreen" in video) {
-      (video as HTMLVideoElement & { webkitRequestFullscreen(): void }).webkitRequestFullscreen();
-    } else if ("webkitEnterFullscreen" in video) {
+    if (container?.requestFullscreen) {
+      void container.requestFullscreen();
+    } else if (container && "webkitRequestFullscreen" in container) {
+      (container as HTMLDivElement & { webkitRequestFullscreen(): void }).webkitRequestFullscreen();
+    } else if (video && "webkitEnterFullscreen" in video) {
       (video as HTMLVideoElement & { webkitEnterFullscreen(): void }).webkitEnterFullscreen();
     }
   }
 
   return (
-    <div className="relative w-full bg-black rounded-lg overflow-hidden aspect-video">
+    <div
+      ref={containerRef}
+      className="relative w-full bg-black rounded-lg overflow-hidden aspect-video"
+    >
       <video
         ref={videoRef}
         className={`w-full h-full object-contain transition-[transform,opacity] duration-300 ${rotationReady ? "opacity-100" : "opacity-0"}`}
