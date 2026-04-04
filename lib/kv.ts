@@ -4,8 +4,7 @@ import type { GeckoEvent, Rotation } from "./types";
 const MAX_EVENTS = 200;
 const PAGE_SIZE = 12;
 const BLOB_PREFIX = "gecko-cam-data";
-const ROTATION_FILENAME = "rotation-v2.json";
-const LEGACY_ROTATION_FILENAME = "rotation.json";
+const ROTATION_FILENAME = "rotation-v3.json";
 const FAVORITES_FILENAME = "favorites.json";
 
 function getBaseUrl(): string {
@@ -39,20 +38,14 @@ async function writeBlob(filename: string, data: unknown): Promise<void> {
 // ── Rotation ──────────────────────────────────────────────────────────────────
 
 export async function getRotation(): Promise<Rotation> {
-  const [currentData, legacyData] = await Promise.all([
-    readBlob<{ rotation: number }>(ROTATION_FILENAME),
-    readBlob<{ rotation: number }>(LEGACY_ROTATION_FILENAME),
-  ]);
-  const r = currentData?.rotation ?? legacyData?.rotation ?? 0;
+  const data = await readBlob<{ rotation: number }>(ROTATION_FILENAME);
+  const r = data?.rotation ?? 0;
   if (r === 90 || r === 180 || r === 270) return r;
   return 0;
 }
 
 export async function setRotation(rotation: Rotation): Promise<void> {
-  await Promise.all([
-    writeBlob(ROTATION_FILENAME, { rotation }),
-    writeBlob(LEGACY_ROTATION_FILENAME, { rotation }),
-  ]);
+  await writeBlob(ROTATION_FILENAME, { rotation });
 }
 
 // ── Snooze ────────────────────────────────────────────────────────────────────

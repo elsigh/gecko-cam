@@ -31,6 +31,7 @@ from uuid import uuid4
 import numpy as np
 
 import cv2
+from libcamera import Transform
 from picamera2 import Picamera2
 from picamera2.encoders import H264Encoder
 from picamera2.outputs import CircularOutput, FfmpegOutput
@@ -51,6 +52,7 @@ MAX_CLIP_SECONDS = 35        # longer than before, but still bounded
 RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
 FPS = 30
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
+CAMERA_ROTATION = 180        # upright source feed so browser/native controls stay upright
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
 SUSTAINED_MOTION_FRAMES = 5   # require motion for N consecutive frames (~0.17s)
@@ -160,6 +162,14 @@ def ensure_dirs() -> None:
     CLIPS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _camera_transform(rotation: int) -> Transform:
+    if rotation == 0:
+        return Transform()
+    if rotation == 180:
+        return Transform(hflip=True, vflip=True)
+    raise ValueError(f"Unsupported camera rotation: {rotation}")
+
+
 def run() -> None:
     ensure_dirs()
 
@@ -169,6 +179,7 @@ def run() -> None:
         main={"size": (1280, 720), "format": "RGB888"},
         lores={"size": (320, 240), "format": "YUV420"},
         controls={"FrameRate": FPS},
+        transform=_camera_transform(CAMERA_ROTATION),
     )
     picam2.configure(config)
 

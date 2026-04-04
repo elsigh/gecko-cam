@@ -31,11 +31,9 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     let cancelled = false;
 
     async function loadRotation() {
-      const saved = parseInt(
-        localStorage.getItem(STREAM_ROTATION_STORAGE_KEY)
-          ?? localStorage.getItem(LEGACY_STREAM_ROTATION_STORAGE_KEY)
-          ?? "0"
-      );
+      localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
+      localStorage.removeItem("stream-rotation-v2");
+      const saved = parseInt(localStorage.getItem(STREAM_ROTATION_STORAGE_KEY) ?? "0");
       if (saved === 90 || saved === 180 || saved === 270) {
         setRotation(saved);
         setRotationReady(true);
@@ -54,7 +52,6 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
         if (fetched === 90 || fetched === 180 || fetched === 270) {
           setRotation(fetched);
           localStorage.setItem(STREAM_ROTATION_STORAGE_KEY, String(fetched));
-          localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
         }
       } catch {
         // Fall back to the default orientation when the server rotation can't be read.
@@ -189,6 +186,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
       const next = ((r + 90) % 360) as 0 | 90 | 180 | 270;
       localStorage.setItem(STREAM_ROTATION_STORAGE_KEY, String(next));
       localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
+      localStorage.removeItem("stream-rotation-v2");
       fetch("/api/rotation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
