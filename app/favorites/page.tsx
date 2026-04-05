@@ -4,10 +4,9 @@ import EventsClient from "@/components/EventsClient";
 import { validateSessionToken } from "@/lib/auth";
 import { listAllEvents } from "@/lib/kv";
 
-export const dynamic = "force-dynamic";
-
 async function FavoritesList() {
-  const [events, cookieStore] = await Promise.all([listAllEvents(), cookies()]);
+  const cookieStore = await cookies();
+  const events = await listAllEvents();
   const favorites = events.filter((event) => event.favorite);
   const canManage = validateSessionToken(cookieStore.get("gecko_session")?.value);
 
