@@ -67,6 +67,9 @@ BRIGHTNESS_DELTA_THRESHOLD = 5
 BRIGHTNESS_MODE_SWITCH_THRESHOLD = 20
 # After a mode switch, ignore new captures briefly while the scene settles.
 BRIGHTNESS_RECOVERY_SECONDS = 8
+# Large lighting transitions can span several consecutive frames; only hard-reset
+# the background model once per transition instead of on every bright frame.
+BRIGHTNESS_MODE_SWITCH_RESET_COOLDOWN_SECONDS = 8
 # If every frame has been filtered out for this long (e.g. stuck in IR transition),
 # auto-reset the background model so detection recovers without a manual restart.
 FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
@@ -215,6 +218,7 @@ def run() -> None:
     recent_brightness_block_times: deque[float] = deque()
     recent_coverage_block_times: deque[float] = deque()
     last_brightness_mode_switch = 0.0
+    last_brightness_mode_switch_reset = 0.0
 
     def flush_motion_summary(force: bool = False) -> None:
         nonlocal motion_summary_started, motion_summary
@@ -306,19 +310,24 @@ def run() -> None:
                 if brightness_delta > BRIGHTNESS_MODE_SWITCH_THRESHOLD:
                     # Large jump = camera mode switch (IR↔color) — reset immediately
                     # so detection recovers in seconds rather than minutes.
-                    log.info(
-                        "Camera mode switch detected (brightness delta %.1f) — "
-                        "resetting background model and EMA.",
-                        brightness_delta,
-                    )
-                    _log_remote_motion(
-                        "filter_blocked",
-                        reason="brightness_mode_switch",
-                        brightnessDelta=round(brightness_delta, 2),
-                        min_interval=60,
-                    )
                     last_brightness_mode_switch = now
-                    bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
+                    if (
+                        now - last_brightness_mode_switch_reset
+                        >= BRIGHTNESS_MODE_SWITCH_RESET_COOLDOWN_SECONDS
+                    ):
+                        log.info(
+                            "Camera mode switch detected (brightness delta %.1f) — "
+                            "resetting background model and EMA.",
+                            brightness_delta,
+                        )
+                        _log_remote_motion(
+                            "filter_blocked",
+                            reason="brightness_mode_switch",
+                            brightnessDelta=round(brightness_delta, 2),
+                            min_interval=60,
+                        )
+                        bg_sub = cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=50)
+                        last_brightness_mode_switch_reset = now
                     rolling_brightness = y_mean  # snap EMA to current level
                     last_frame_passed_filters = now
                 else:
