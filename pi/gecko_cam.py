@@ -66,7 +66,7 @@ BRIGHTNESS_DELTA_THRESHOLD = 5
 # the background model and snap the EMA rather than waiting for slow convergence.
 BRIGHTNESS_MODE_SWITCH_THRESHOLD = 20
 # After a mode switch, ignore new captures briefly while the scene settles.
-BRIGHTNESS_RECOVERY_SECONDS = 45
+BRIGHTNESS_RECOVERY_SECONDS = 8
 # If every frame has been filtered out for this long (e.g. stuck in IR transition),
 # auto-reset the background model so detection recovers without a manual restart.
 FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
