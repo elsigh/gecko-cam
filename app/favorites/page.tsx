@@ -1,14 +1,14 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import EventsClient from "@/components/EventsClient";
-import { getCachedFavoriteEvents } from "@/lib/events-cache";
 import { validateSessionToken } from "@/lib/auth";
+import { listAllEvents } from "@/lib/kv";
+
+export const dynamic = "force-dynamic";
 
 async function FavoritesList() {
-  const [favorites, cookieStore] = await Promise.all([
-    getCachedFavoriteEvents(),
-    cookies(),
-  ]);
+  const [events, cookieStore] = await Promise.all([listAllEvents(), cookies()]);
+  const favorites = events.filter((event) => event.favorite);
   const canManage = validateSessionToken(cookieStore.get("gecko_session")?.value);
 
   return (
