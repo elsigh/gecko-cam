@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { deleteEventAction } from "@/app/actions/events";
+import { deleteEventAction, setFavoriteEventAction } from "@/app/actions/events";
 import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
@@ -21,6 +21,7 @@ interface EventCardProps {
   selectable?: boolean;
   selected?: boolean;
   onSelect?: (id: string) => void;
+  onFavoriteChange?: (id: string, favorite: boolean) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -36,11 +37,18 @@ export default function EventCard({
   selectable,
   selected,
   onSelect,
+  onFavoriteChange,
 }: EventCardProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [updatingFavorite, setUpdatingFavorite] = useState(false);
   const [imageBroken, setImageBroken] = useState(false);
+  const [favorite, setFavorite] = useState(Boolean(event.favorite));
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
+
+  useEffect(() => {
+    setFavorite(Boolean(event.favorite));
+  }, [event.favorite, event.id]);
 
   if (optimisticallyDeletedIds.has(event.id)) {
     return null;
@@ -74,6 +82,35 @@ export default function EventCard({
     }
   }
 
+  async function handleUnfavorite(eventId: string) {
+    if (!favorite) return;
+
+    const previousFavorite = favorite;
+    setUpdatingFavorite(true);
+    setFavorite(false);
+
+    try {
+      const result = await setFavoriteEventAction(eventId, false);
+      if (result.ok) {
+        onFavoriteChange?.(eventId, false);
+        router.refresh();
+        return;
+      }
+
+      setFavorite(previousFavorite);
+      alert(
+        result.status === 401
+          ? "Not authorized. Log in first to favorite events."
+          : "Failed to update favorite."
+      );
+    } catch {
+      setFavorite(previousFavorite);
+      alert("Network error.");
+    } finally {
+      setUpdatingFavorite(false);
+    }
+  }
+
   const thumbnail = (
     <div className="relative aspect-video bg-black block w-full">
       {imageBroken ? (
@@ -91,6 +128,28 @@ export default function EventCard({
           sizes="(max-width: 768px) 100vw, 33vw"
           onError={() => setImageBroken(true)}
         />
+      )}
+      {!selectable && favorite && (
+        <button
+          type="button"
+          onClick={(clickEvent) => {
+            clickEvent.preventDefault();
+            clickEvent.stopPropagation();
+            void handleUnfavorite(event.id);
+          }}
+          disabled={updatingFavorite}
+          className="absolute top-2 right-2 inline-flex items-center justify-center rounded-full bg-black/60 p-1.5 text-amber-300 hover:bg-black/80 hover:text-amber-200 transition-colors disabled:opacity-60"
+          title="Remove favorite"
+          aria-label="Remove favorite"
+        >
+          {updatingFavorite ? (
+            <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-amber-300 border-t-transparent animate-spin" aria-hidden />
+          ) : (
+            <svg className="h-3.5 w-3.5" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538 1.118l-2.8-2.034a1 1 0 00-1.176 0l-2.8 2.034c-.783.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.719c-.783-.57-.38-1.81.588-1.81H7.03a1 1 0 00.95-.69z" />
+            </svg>
+          )}
+        </button>
       )}
       {selectable ? (
         <div className={`absolute inset-0 transition-colors ${selected ? "bg-blue-500/20" : "hover:bg-white/10"}`}>
