@@ -70,6 +70,11 @@ BRIGHTNESS_RECOVERY_SECONDS = 8
 # Large lighting transitions can span several consecutive frames; only hard-reset
 # the background model once per transition instead of on every bright frame.
 BRIGHTNESS_MODE_SWITCH_RESET_COOLDOWN_SECONDS = 8
+# Reject starting a new capture if whole-frame brightness has drifted too much
+# over the recent window; this catches slow enclosure light shifts that still
+# look like "motion" to MOG2 but do not resemble MauMau moving.
+BRIGHTNESS_DRIFT_WINDOW_SECONDS = 12
+MAX_TRIGGER_BRIGHTNESS_RANGE = 2.2
 # If every frame has been filtered out for this long (e.g. stuck in IR transition),
 # auto-reset the background model so detection recovers without a manual restart.
 FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
@@ -147,6 +152,7 @@ def _empty_motion_summary() -> dict[str, float | int]:
         "brightnessBlocks": 0,
         "coverageBlocks": 0,
         "brightnessRecoverySkips": 0,
+        "brightnessDriftSkips": 0,
         "noisyWindowSkips": 0,
         "startCoverageSkips": 0,
         "nearThresholdFrames": 0,
@@ -156,6 +162,7 @@ def _empty_motion_summary() -> dict[str, float | int]:
         "snoozedSkips": 0,
         "maxMotionScore": 0.0,
         "maxBrightnessDelta": 0.0,
+        "maxBrightnessWindowRange": 0.0,
         "maxCoverageFraction": 0.0,
     }
 
@@ -217,6 +224,7 @@ def run() -> None:
     motion_summary = _empty_motion_summary()
     recent_brightness_block_times: deque[float] = deque()
     recent_coverage_block_times: deque[float] = deque()
+    recent_brightness_samples: deque[tuple[float, float]] = deque()
     last_brightness_mode_switch = 0.0
     last_brightness_mode_switch_reset = 0.0
 
@@ -245,6 +253,11 @@ def run() -> None:
         cutoff = now - NOISY_WINDOW_SECONDS
         while event_times and event_times[0] < cutoff:
             event_times.popleft()
+
+    def trim_recent_brightness_samples(now: float) -> None:
+        cutoff = now - BRIGHTNESS_DRIFT_WINDOW_SECONDS
+        while recent_brightness_samples and recent_brightness_samples[0][0] < cutoff:
+            recent_brightness_samples.popleft()
 
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
@@ -298,6 +311,16 @@ def run() -> None:
             brightness_delta = abs(y_mean - rolling_brightness)
             # Slow EMA so it tracks the settled level, not fast transients
             rolling_brightness = rolling_brightness * 0.92 + y_mean * 0.08
+            recent_brightness_samples.append((now, y_mean))
+            trim_recent_brightness_samples(now)
+            brightness_window_range = 0.0
+            if recent_brightness_samples:
+                brightness_values = [sample for _, sample in recent_brightness_samples]
+                brightness_window_range = max(brightness_values) - min(brightness_values)
+                motion_summary["maxBrightnessWindowRange"] = max(
+                    float(motion_summary["maxBrightnessWindowRange"]),
+                    brightness_window_range,
+                )
 
             if brightness_delta > BRIGHTNESS_DELTA_THRESHOLD:
                 motion_summary["brightnessBlocks"] += 1
@@ -486,6 +509,24 @@ def run() -> None:
                         reason="start_coverage_filter",
                         motionScore=round(motion_score, 1),
                         coverageFraction=round(coverage_fraction, 4),
+                        recentBrightnessBlocks=len(recent_brightness_block_times),
+                        recentCoverageBlocks=len(recent_coverage_block_times),
+                        consecutiveFrames=trigger_frames,
+                        min_interval=10,
+                    )
+                    consecutive_high_motion = 0
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
+                if brightness_window_range > MAX_TRIGGER_BRIGHTNESS_RANGE:
+                    motion_summary["brightnessDriftSkips"] += 1
+                    motion_cooldown = max(motion_cooldown, SKIP_RETRY_COOLDOWN_SECONDS)
+                    _log_remote_motion(
+                        "motion_skipped",
+                        reason="brightness_drift_window",
+                        motionScore=round(motion_score, 1),
+                        coverageFraction=round(coverage_fraction, 4),
+                        brightnessWindowRange=round(brightness_window_range, 3),
                         recentBrightnessBlocks=len(recent_brightness_block_times),
                         recentCoverageBlocks=len(recent_coverage_block_times),
                         consecutiveFrames=trigger_frames,
