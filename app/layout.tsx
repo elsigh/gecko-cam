@@ -21,25 +21,40 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} bg-gray-900 text-gray-100 min-h-screen`}>
-        <header className="border-b border-gray-800 px-4 py-3 flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3 text-gray-100 hover:text-white transition-colors">
+        <header className="flex items-center gap-3 border-b border-gray-800 px-3 py-3 sm:px-4">
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2 text-gray-100 transition-colors hover:text-white sm:gap-3"
+          >
             <span className="text-xl">🦎</span>
-            <h1 className="font-semibold text-lg tracking-tight">Gecko Cam</h1>
+            <h1 className="text-base font-semibold tracking-tight sm:text-lg">
+              <span className="sm:hidden">Cam</span>
+              <span className="hidden sm:inline">Gecko Cam</span>
+            </h1>
           </Link>
-          <div className="ml-auto flex items-center gap-4">
-            <Link href="/favorites" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">
+          <div className="ml-auto flex min-w-0 items-center gap-3 sm:gap-4">
+            <Link
+              href="/favorites"
+              className="whitespace-nowrap text-xs text-gray-400 transition-colors hover:text-gray-200 sm:text-sm"
+            >
               Favorites
             </Link>
-            <Link href="/events" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">
+            <Link
+              href="/events"
+              className="whitespace-nowrap text-xs text-gray-400 transition-colors hover:text-gray-200 sm:text-sm"
+            >
               Events
             </Link>
-            <Link href="/about" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">
+            <Link
+              href="/about"
+              className="whitespace-nowrap text-xs text-gray-400 transition-colors hover:text-gray-200 sm:text-sm"
+            >
               About
             </Link>
             <SnoozeButton />
           </div>
         </header>
-        <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+        <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4">{children}</main>
       </body>
     </html>
   );

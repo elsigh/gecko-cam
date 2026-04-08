@@ -225,7 +225,7 @@ export default function EventVideoView({
     return (
       <Link
         href={href}
-        className="group flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-gray-200 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
+        className="group flex min-w-0 max-w-[11rem] shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-gray-200 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white sm:max-w-none"
       >
         {direction === "left" && (
           <svg className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -257,7 +257,7 @@ export default function EventVideoView({
     description: string;
   }) {
     return (
-      <div className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-left text-gray-500">
+      <div className="flex min-w-0 max-w-[11rem] shrink-0 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-left text-gray-500 sm:max-w-none">
         <span className="min-w-0">
           <span className="block text-[11px] font-medium uppercase tracking-[0.24em] text-gray-600">
             {label}
@@ -270,38 +270,148 @@ export default function EventVideoView({
     );
   }
 
+  function BackControl() {
+    if (deleting) {
+      return (
+        <span className="flex items-center gap-2 text-sm text-gray-500 cursor-wait">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <title>Back</title>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          {backLabel}
+        </span>
+      );
+    }
+
+    return (
+      <Link
+        href={backHref}
+        className="flex items-center gap-2 text-sm text-gray-300 transition-colors hover:text-white"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <title>Back</title>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        {backLabel}
+      </Link>
+    );
+  }
+
+  function ActionButtons() {
+    return (
+      <div className="flex items-center justify-end gap-1">
+        {canDelete && (
+          <button
+            type="button"
+            onClick={handleFavorite}
+            disabled={deleting || favoriting}
+            className={`p-2 rounded-lg transition-colors disabled:opacity-40 ${
+              favorite
+                ? "text-amber-300 hover:text-amber-200 hover:bg-amber-400/10"
+                : "text-gray-300 hover:text-white hover:bg-white/10"
+            }`}
+            title={favorite ? "Remove favorite" : "Add favorite"}
+            aria-label={favorite ? "Remove favorite" : "Add favorite"}
+          >
+            {favoriting ? (
+              <span className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" aria-hidden />
+            ) : (
+              <svg className="w-5 h-5" fill={favorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <title>{favorite ? "Favorite clip" : "Add favorite"}</title>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.318 4.056a1 1 0 00.95.69h4.266c.969 0 1.371 1.24.588 1.81l-3.452 2.508a1 1 0 00-.364 1.118l1.318 4.056c.3.921-.755 1.688-1.538 1.118l-3.452-2.508a1 1 0 00-1.176 0l-3.452 2.508c-.783.57-1.838-.197-1.539-1.118l1.319-4.056a1 1 0 00-.364-1.118L2.98 9.483c-.783-.57-.38-1.81.588-1.81H7.83a1 1 0 00.95-.69z"
+                />
+              </svg>
+            )}
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={handleRotate}
+            disabled={deleting || rotating}
+            className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 disabled:opacity-40 transition-colors"
+            title="Rotate clip 90°"
+            aria-label="Rotate clip 90 degrees"
+          >
+            {rotating ? (
+              <span className="inline-block w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" aria-hidden />
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <title>Rotate clip</title>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 3h6v6M9 21H6a3 3 0 01-3-3V6m18 3a9 9 0 11-9 9"
+                />
+              </svg>
+            )}
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-white/10 disabled:opacity-40 transition-colors"
+            title="Delete event"
+            aria-label="Delete event"
+          >
+            {deleting ? (
+              <span className="inline-block w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" aria-hidden />
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <title>Delete event</title>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            )}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          disabled={deleting}
+          className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+          title="Fullscreen"
+          aria-label="Toggle fullscreen"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <title>Toggle fullscreen</title>
+            {isFullscreen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            )}
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <section
       ref={containerRef}
       className="flex flex-col min-h-[80vh] bg-black rounded-lg"
       aria-label={`Watch event from ${formatEventTimestamp(event.timestamp)}`}
     >
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-gray-800 bg-gray-900/90 p-3">
-        <div className="min-w-0">
-          {deleting ? (
-            <span className="flex items-center gap-2 text-sm text-gray-500 cursor-wait">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <title>Back</title>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              {backLabel}
-            </span>
-          ) : (
-            <Link
-              href={backHref}
-              className="flex items-center gap-2 text-sm text-gray-300 transition-colors hover:text-white"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <title>Back</title>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              {backLabel}
-            </Link>
-          )}
+      <div className="border-b border-gray-800 bg-gray-900/90 p-3">
+        <div className="flex items-center justify-between gap-3 sm:hidden">
+          <div className="min-w-0">
+            <BackControl />
+          </div>
+          <ActionButtons />
         </div>
 
-        <div className="flex min-w-0 justify-center">
-          <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
+        <div className="mt-3 overflow-x-auto pb-1 sm:mt-0 sm:grid sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-3 sm:overflow-visible sm:pb-0">
+          <div className="hidden min-w-0 sm:block">
+            <BackControl />
+          </div>
+
+          <div className="flex min-w-max items-center gap-2 sm:min-w-0 sm:justify-center">
             {navigation?.newer ? (
               <NavigationButton
                 href={`/events/${navigation.newer.id}`}
@@ -316,7 +426,7 @@ export default function EventVideoView({
               />
             )}
 
-            <div className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-center">
+            <div className="min-w-0 max-w-[11rem] shrink-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-center sm:max-w-none">
               <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-500">
                 This Event
               </p>
@@ -344,97 +454,10 @@ export default function EventVideoView({
               />
             )}
           </div>
-        </div>
 
-        <div className="flex items-center justify-end gap-1">
-          {canDelete && (
-            <button
-              type="button"
-              onClick={handleFavorite}
-              disabled={deleting || favoriting}
-              className={`p-2 rounded-lg transition-colors disabled:opacity-40 ${
-                favorite
-                  ? "text-amber-300 hover:text-amber-200 hover:bg-amber-400/10"
-                  : "text-gray-300 hover:text-white hover:bg-white/10"
-              }`}
-              title={favorite ? "Remove favorite" : "Add favorite"}
-              aria-label={favorite ? "Remove favorite" : "Add favorite"}
-            >
-              {favoriting ? (
-                <span className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" aria-hidden />
-              ) : (
-                <svg className="w-5 h-5" fill={favorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <title>{favorite ? "Favorite clip" : "Add favorite"}</title>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.318 4.056a1 1 0 00.95.69h4.266c.969 0 1.371 1.24.588 1.81l-3.452 2.508a1 1 0 00-.364 1.118l1.318 4.056c.3.921-.755 1.688-1.538 1.118l-3.452-2.508a1 1 0 00-1.176 0l-3.452 2.508c-.783.57-1.838-.197-1.539-1.118l1.319-4.056a1 1 0 00-.364-1.118L2.98 9.483c-.783-.57-.38-1.81.588-1.81H7.83a1 1 0 00.95-.69z"
-                  />
-                </svg>
-              )}
-            </button>
-          )}
-          {canDelete && (
-            <button
-              type="button"
-              onClick={handleRotate}
-              disabled={deleting || rotating}
-              className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 disabled:opacity-40 transition-colors"
-              title="Rotate clip 90°"
-              aria-label="Rotate clip 90 degrees"
-            >
-              {rotating ? (
-                <span className="inline-block w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" aria-hidden />
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <title>Rotate clip</title>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 3h6v6M9 21H6a3 3 0 01-3-3V6m18 3a9 9 0 11-9 9"
-                  />
-                </svg>
-              )}
-            </button>
-          )}
-          {canDelete && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleting}
-              className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-white/10 disabled:opacity-40 transition-colors"
-              title="Delete event"
-              aria-label="Delete event"
-            >
-              {deleting ? (
-                <span className="inline-block w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" aria-hidden />
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                  <title>Delete event</title>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              )}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            disabled={deleting}
-            className="p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-            title="Fullscreen"
-            aria-label="Toggle fullscreen"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <title>Toggle fullscreen</title>
-              {isFullscreen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              )}
-            </svg>
-          </button>
+          <div className="hidden sm:block">
+            <ActionButtons />
+          </div>
         </div>
       </div>
 
