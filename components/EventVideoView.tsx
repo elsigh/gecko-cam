@@ -8,7 +8,7 @@ import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
 } from "@/lib/optimistic-event-deletions";
-import { formatEventTimestamp } from "@/lib/event-time";
+import { formatEventCompactTime, formatEventTimestamp } from "@/lib/event-time";
 import { rotationStyle } from "@/lib/rotation";
 import type { GeckoEvent, Rotation } from "@/lib/types";
 
@@ -225,7 +225,7 @@ export default function EventVideoView({
     return (
       <Link
         href={href}
-        className="group flex min-w-0 max-w-[11rem] shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-gray-200 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white sm:max-w-none"
+        className="group flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-gray-200 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
       >
         {direction === "left" && (
           <svg className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -233,10 +233,13 @@ export default function EventVideoView({
           </svg>
         )}
         <span className="min-w-0">
-          <span className="block text-[11px] font-medium uppercase tracking-[0.24em] text-gray-500 group-hover:text-gray-300">
+          <span className="block text-[10px] font-medium uppercase tracking-[0.2em] text-gray-500 group-hover:text-gray-300 sm:text-[11px] sm:tracking-[0.24em]">
             {label}
           </span>
-          <span className="block truncate text-sm text-white/90">
+          <span className="block truncate text-xs text-white/90 sm:hidden">
+            {formatEventCompactTime(timestamp)}
+          </span>
+          <span className="hidden truncate text-sm text-white/90 sm:block">
             {formatEventTimestamp(timestamp)}
           </span>
         </span>
@@ -252,17 +255,22 @@ export default function EventVideoView({
   function NavigationPlaceholder({
     label,
     description,
+    compactDescription,
   }: {
     label: string;
     description: string;
+    compactDescription: string;
   }) {
     return (
-      <div className="flex min-w-0 max-w-[11rem] shrink-0 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-left text-gray-500 sm:max-w-none">
+      <div className="flex min-w-0 items-center rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-left text-gray-500">
         <span className="min-w-0">
-          <span className="block text-[11px] font-medium uppercase tracking-[0.24em] text-gray-600">
+          <span className="block text-[10px] font-medium uppercase tracking-[0.2em] text-gray-600 sm:text-[11px] sm:tracking-[0.24em]">
             {label}
           </span>
-          <span className="block truncate text-sm text-gray-500">
+          <span className="block truncate text-xs text-gray-500 sm:hidden">
+            {compactDescription}
+          </span>
+          <span className="hidden truncate text-sm text-gray-500 sm:block">
             {description}
           </span>
         </span>
@@ -406,12 +414,12 @@ export default function EventVideoView({
           <ActionButtons />
         </div>
 
-        <div className="mt-3 overflow-x-auto pb-1 sm:mt-0 sm:grid sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-3 sm:overflow-visible sm:pb-0">
+        <div className="mt-3 sm:mt-0 sm:grid sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-3">
           <div className="hidden min-w-0 sm:block">
             <BackControl />
           </div>
 
-          <div className="flex min-w-max items-center gap-2 sm:min-w-0 sm:justify-center">
+          <div className="grid min-w-0 grid-cols-3 gap-2 sm:flex sm:min-w-0 sm:justify-center">
             {navigation?.newer ? (
               <NavigationButton
                 href={`/events/${navigation.newer.id}`}
@@ -423,18 +431,22 @@ export default function EventVideoView({
               <NavigationPlaceholder
                 label="After"
                 description="On latest event"
+                compactDescription="Latest"
               />
             )}
 
-            <div className="min-w-0 max-w-[11rem] shrink-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-center sm:max-w-none">
-              <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-500">
+            <div className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-center sm:px-4">
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-500 sm:text-[11px] sm:tracking-[0.24em]">
                 This Event
               </p>
-              <p className="truncate text-sm text-white/90">
+              <p className="truncate text-xs text-white/90 sm:hidden">
+                {formatEventCompactTime(event.timestamp)}
+              </p>
+              <p className="hidden truncate text-sm text-white/90 sm:block">
                 {formatEventTimestamp(event.timestamp)}
               </p>
               {favorite && (
-                <p className="text-[11px] uppercase tracking-[0.24em] text-amber-300">
+                <p className="hidden text-[11px] uppercase tracking-[0.24em] text-amber-300 sm:block">
                   Favorited
                 </p>
               )}
@@ -451,6 +463,7 @@ export default function EventVideoView({
               <NavigationPlaceholder
                 label="Before"
                 description="On earliest event"
+                compactDescription="Earliest"
               />
             )}
           </div>
