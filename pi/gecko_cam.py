@@ -75,6 +75,13 @@ BRIGHTNESS_MODE_SWITCH_RESET_COOLDOWN_SECONDS = 8
 # look like "motion" to MOG2 but do not resemble MauMau moving.
 BRIGHTNESS_DRIFT_WINDOW_SECONDS = 12
 MAX_TRIGGER_BRIGHTNESS_RANGE = 2.2
+# Some real feeding/walking events happen during mild enclosure-wide brightness
+# drift. Let localized, gecko-sized motion punch through the drift guard instead
+# of waiting for the brightness window to settle completely.
+LOCALIZED_DRIFT_OVERRIDE_MAX_BRIGHTNESS_RANGE = 4.2
+LOCALIZED_DRIFT_OVERRIDE_MAX_COVERAGE_FRACTION = 0.04
+LOCALIZED_DRIFT_OVERRIDE_MIN_MOTION_SCORE = 2100
+LOCALIZED_DRIFT_OVERRIDE_MAX_RECENT_FILTER_BLOCKS = 1
 # If every frame has been filtered out for this long (e.g. stuck in IR transition),
 # auto-reset the background model so detection recovers without a manual restart.
 FILTER_STALL_RESET_SECONDS = 300  # 5 minutes
@@ -153,6 +160,7 @@ def _empty_motion_summary() -> dict[str, float | int]:
         "coverageBlocks": 0,
         "brightnessRecoverySkips": 0,
         "brightnessDriftSkips": 0,
+        "brightnessDriftOverrides": 0,
         "noisyWindowSkips": 0,
         "startCoverageSkips": 0,
         "nearThresholdFrames": 0,
@@ -451,6 +459,9 @@ def run() -> None:
                 and not capturing
             ):
                 trigger_frames = consecutive_high_motion
+                recent_brightness_blocks = len(recent_brightness_block_times)
+                recent_coverage_blocks = len(recent_coverage_block_times)
+                recent_filter_blocks = recent_brightness_blocks + recent_coverage_blocks
                 if motion_cooldown > 0:
                     motion_summary["cooldownSkips"] += 1
                     _log_remote_motion(
@@ -492,8 +503,8 @@ def run() -> None:
                         secondsSinceBrightnessModeSwitch=round(
                             now - last_brightness_mode_switch, 1
                         ),
-                        recentBrightnessBlocks=len(recent_brightness_block_times),
-                        recentCoverageBlocks=len(recent_coverage_block_times),
+                        recentBrightnessBlocks=recent_brightness_blocks,
+                        recentCoverageBlocks=recent_coverage_blocks,
                         consecutiveFrames=trigger_frames,
                         min_interval=10,
                     )
@@ -509,8 +520,8 @@ def run() -> None:
                         reason="start_coverage_filter",
                         motionScore=round(motion_score, 1),
                         coverageFraction=round(coverage_fraction, 4),
-                        recentBrightnessBlocks=len(recent_brightness_block_times),
-                        recentCoverageBlocks=len(recent_coverage_block_times),
+                        recentBrightnessBlocks=recent_brightness_blocks,
+                        recentCoverageBlocks=recent_coverage_blocks,
                         consecutiveFrames=trigger_frames,
                         min_interval=10,
                     )
@@ -518,28 +529,49 @@ def run() -> None:
                     time.sleep(POLL_INTERVAL)
                     continue
 
+                allow_localized_brightness_drift_override = (
+                    brightness_window_range <= LOCALIZED_DRIFT_OVERRIDE_MAX_BRIGHTNESS_RANGE
+                    and coverage_fraction <= LOCALIZED_DRIFT_OVERRIDE_MAX_COVERAGE_FRACTION
+                    and motion_score >= LOCALIZED_DRIFT_OVERRIDE_MIN_MOTION_SCORE
+                    and recent_filter_blocks <= LOCALIZED_DRIFT_OVERRIDE_MAX_RECENT_FILTER_BLOCKS
+                )
+
                 if brightness_window_range > MAX_TRIGGER_BRIGHTNESS_RANGE:
-                    motion_summary["brightnessDriftSkips"] += 1
-                    motion_cooldown = max(motion_cooldown, SKIP_RETRY_COOLDOWN_SECONDS)
-                    _log_remote_motion(
-                        "motion_skipped",
-                        reason="brightness_drift_window",
-                        motionScore=round(motion_score, 1),
-                        coverageFraction=round(coverage_fraction, 4),
-                        brightnessWindowRange=round(brightness_window_range, 3),
-                        recentBrightnessBlocks=len(recent_brightness_block_times),
-                        recentCoverageBlocks=len(recent_coverage_block_times),
-                        consecutiveFrames=trigger_frames,
-                        min_interval=10,
-                    )
-                    consecutive_high_motion = 0
-                    time.sleep(POLL_INTERVAL)
-                    continue
+                    if allow_localized_brightness_drift_override:
+                        motion_summary["brightnessDriftOverrides"] += 1
+                        _log_remote_motion(
+                            "trigger_override",
+                            reason="localized_motion_after_brightness_drift",
+                            motionScore=round(motion_score, 1),
+                            coverageFraction=round(coverage_fraction, 4),
+                            brightnessWindowRange=round(brightness_window_range, 3),
+                            recentBrightnessBlocks=recent_brightness_blocks,
+                            recentCoverageBlocks=recent_coverage_blocks,
+                            consecutiveFrames=trigger_frames,
+                            min_interval=10,
+                        )
+                    else:
+                        motion_summary["brightnessDriftSkips"] += 1
+                        motion_cooldown = max(motion_cooldown, SKIP_RETRY_COOLDOWN_SECONDS)
+                        _log_remote_motion(
+                            "motion_skipped",
+                            reason="brightness_drift_window",
+                            motionScore=round(motion_score, 1),
+                            coverageFraction=round(coverage_fraction, 4),
+                            brightnessWindowRange=round(brightness_window_range, 3),
+                            recentBrightnessBlocks=recent_brightness_blocks,
+                            recentCoverageBlocks=recent_coverage_blocks,
+                            consecutiveFrames=trigger_frames,
+                            min_interval=10,
+                        )
+                        consecutive_high_motion = 0
+                        time.sleep(POLL_INTERVAL)
+                        continue
 
                 if (
                     (
-                        len(recent_brightness_block_times) >= NOISY_WINDOW_BRIGHTNESS_BLOCKS
-                        or len(recent_coverage_block_times) >= NOISY_WINDOW_COVERAGE_BLOCKS
+                        recent_brightness_blocks >= NOISY_WINDOW_BRIGHTNESS_BLOCKS
+                        or recent_coverage_blocks >= NOISY_WINDOW_COVERAGE_BLOCKS
                     )
                     and coverage_fraction > NOISY_WINDOW_MAX_START_COVERAGE_FRACTION
                 ):
@@ -550,8 +582,8 @@ def run() -> None:
                         reason="noisy_window",
                         motionScore=round(motion_score, 1),
                         coverageFraction=round(coverage_fraction, 4),
-                        recentBrightnessBlocks=len(recent_brightness_block_times),
-                        recentCoverageBlocks=len(recent_coverage_block_times),
+                        recentBrightnessBlocks=recent_brightness_blocks,
+                        recentCoverageBlocks=recent_coverage_blocks,
                         consecutiveFrames=trigger_frames,
                         min_interval=10,
                     )

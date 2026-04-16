@@ -2,11 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import {
-  LEGACY_STREAM_ROTATION_STORAGE_KEY,
-  rotationStyle,
-  STREAM_ROTATION_STORAGE_KEY,
-} from "@/lib/rotation";
 
 interface LiveStreamProps {
   streamUrl: string;
@@ -22,49 +17,12 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
-  const [rotationReady, setRotationReady] = useState(false);
   const [clock, setClock] = useState("");
 
-  // Load persisted rotation on mount
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadRotation() {
-      localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
-      localStorage.removeItem("stream-rotation-v2");
-      const saved = parseInt(localStorage.getItem(STREAM_ROTATION_STORAGE_KEY) ?? "0");
-      if (saved === 90 || saved === 180 || saved === 270) {
-        setRotation(saved);
-        setRotationReady(true);
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/rotation", {
-          credentials: "include",
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error(`rotation fetch failed: ${response.status}`);
-        const data: { rotation?: number } = await response.json();
-        if (cancelled) return;
-        const fetched = data.rotation;
-        if (fetched === 90 || fetched === 180 || fetched === 270) {
-          setRotation(fetched);
-          localStorage.setItem(STREAM_ROTATION_STORAGE_KEY, String(fetched));
-        }
-      } catch {
-        // Fall back to the default orientation when the server rotation can't be read.
-      } finally {
-        if (!cancelled) setRotationReady(true);
-      }
-    }
-
-    void loadRotation();
-
-    return () => {
-      cancelled = true;
-    };
+    localStorage.removeItem("stream-rotation");
+    localStorage.removeItem("stream-rotation-v2");
+    localStorage.removeItem("stream-rotation-v3");
   }, []);
 
   // Ticking clock
@@ -181,22 +139,6 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     }
   }
 
-  function handleRotate() {
-    setRotation((r) => {
-      const next = ((r + 90) % 360) as 0 | 90 | 180 | 270;
-      localStorage.setItem(STREAM_ROTATION_STORAGE_KEY, String(next));
-      localStorage.removeItem(LEGACY_STREAM_ROTATION_STORAGE_KEY);
-      localStorage.removeItem("stream-rotation-v2");
-      fetch("/api/rotation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rotation: next }),
-        credentials: "include",
-      }).catch(() => {});
-      return next;
-    });
-  }
-
   function handleFullscreen() {
     const container = containerRef.current;
     const video = videoRef.current;
@@ -216,8 +158,7 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
     >
       <video
         ref={videoRef}
-        className={`w-full h-full object-contain transition-opacity duration-300 ${rotationReady ? "opacity-100" : "opacity-0"}`}
-        style={rotationStyle(rotation)}
+        className="w-full h-full object-contain"
         muted
         playsInline
         autoPlay
@@ -249,16 +190,6 @@ export default function LiveStream({ streamUrl }: LiveStreamProps) {
         </div>
       )}
       <div className="absolute bottom-2 right-2 flex gap-1.5">
-        <button
-          onClick={handleRotate}
-          title="Rotate 90°"
-          className="p-1.5 rounded bg-black/50 hover:bg-black/80 text-white transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M15 3h6v6M9 21H6a3 3 0 01-3-3V6m18 3a9 9 0 11-9 9" />
-          </svg>
-        </button>
         {status === "live" && (
           <button
             onClick={handleFullscreen}

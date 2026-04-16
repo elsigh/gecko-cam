@@ -71,5 +71,7 @@ In `gecko_cam.py`:
 
 - `MOTION_THRESHOLD` — higher = less sensitive.
 - `SUSTAINED_MOTION_FRAMES` — consecutive frames above threshold before trigger (reduces light-flicker false positives).
-- `MAX_CONTOUR_FRACTION` — ignore frame if largest blob is this fraction of image (filters full-frame lighting changes).
+- `MAX_COVERAGE_FRACTION` — ignore frames where too much of the enclosure appears to move at once.
+- `MAX_TRIGGER_BRIGHTNESS_RANGE` — blocks new captures while enclosure brightness is drifting across the recent window.
+- `LOCALIZED_DRIFT_OVERRIDE_*` — lets strong, localized motion still start a capture during mild brightness drift.
 - `COOLDOWN_SECONDS` — minimum time between captures.
