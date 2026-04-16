@@ -1,0 +1,29 @@
+components/EventVideoView.tsx
+  a2daf2ab5a738a09 6,13,53,436
+pi/gecko_cam.py
+  a2daf2ab5a738a09 78-84,163,462-464,506-507,523-524,532-538,540-569,573-574,585-586
+pi/README.md
+  a2daf2ab5a738a09 74-76
+components/LiveStream.tsx
+  a2daf2ab5a738a09 23-25,161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "2e64bdbf6f9bd2a7a297a532596866d31c3d5a06",
+  "prompts": {
+    "a2daf2ab5a738a09": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d96e4-6075-71b2-b994-c4def14f7f5f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "elsigh",
+      "messages": [],
+      "total_additions": 67,
+      "total_deletions": 160,
+      "accepted_lines": 67,
+      "overriden_lines": 0
+    }
+  }
+}
