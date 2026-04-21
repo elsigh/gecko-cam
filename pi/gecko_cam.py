@@ -49,13 +49,14 @@ COOLDOWN_SECONDS = 10        # restore a less aggressive gap between clips
 WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
 POST_MOTION_HOLD = 8         # restore the earlier tail length after motion stops
 MAX_CLIP_SECONDS = 35        # longer than before, but still bounded
-RING_BUFFER_SECONDS = 10     # seconds of pre-motion buffer
+RING_BUFFER_SECONDS = 15     # seconds of pre-motion buffer
 FPS = 30
+KEYFRAME_INTERVAL_FRAMES = 15  # 0.5s GOP so CircularOutput pre-roll starts close to the trigger
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 CAMERA_ROTATION = 180        # upright source feed so browser/native controls stay upright
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
-SUSTAINED_MOTION_FRAMES = 5   # require motion for N consecutive frames (~0.17s)
+SUSTAINED_MOTION_FRAMES = 4   # require motion for N consecutive frames (~0.13s)
 # If total motion pixels exceed this fraction of the frame it's almost certainly
 # a global lighting change (lamp on/off), not the gecko.
 MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
@@ -201,7 +202,11 @@ def run() -> None:
     )
     picam2.configure(config)
 
-    encoder = H264Encoder(bitrate=4_000_000)
+    encoder = H264Encoder(
+        bitrate=4_000_000,
+        repeat=True,
+        iperiod=KEYFRAME_INTERVAL_FRAMES,
+    )
 
     hls_output = FfmpegOutput(
         f"-f hls "

@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+function normalizeRedirectPath(from: string | null): string {
+  if (!from || !from.startsWith("/") || from.startsWith("//")) {
+    return "/";
+  }
+
+  return from;
+}
+
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const from = searchParams.get("from") ?? "/";
+  const from = normalizeRedirectPath(searchParams.get("from"));
 
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
@@ -25,8 +32,7 @@ function LoginForm() {
     });
 
     if (res.ok) {
-      router.push(from);
-      router.refresh();
+      window.location.assign(from);
     } else {
       setError(true);
       setLoading(false);

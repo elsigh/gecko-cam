@@ -71,6 +71,8 @@ In `gecko_cam.py`:
 
 - `MOTION_THRESHOLD` — higher = less sensitive.
 - `SUSTAINED_MOTION_FRAMES` — consecutive frames above threshold before trigger (reduces light-flicker false positives).
+- `RING_BUFFER_SECONDS` — extra circular pre-roll kept before the trigger; raise this if action tends to start before motion crosses threshold.
+- `KEYFRAME_INTERVAL_FRAMES` — shorter GOPs preserve more of the circular pre-roll when a clip starts, at a modest compression cost.
 - `MAX_COVERAGE_FRACTION` — ignore frames where too much of the enclosure appears to move at once.
 - `MAX_TRIGGER_BRIGHTNESS_RANGE` — blocks new captures while enclosure brightness is drifting across the recent window.
 - `LOCALIZED_DRIFT_OVERRIDE_*` — lets strong, localized motion still start a capture during mild brightness drift.
