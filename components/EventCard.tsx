@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, ViewTransition } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteEventAction, setFavoriteEventAction } from "@/app/actions/events";
+import TransitionLink from "@/components/TransitionLink";
 import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
@@ -13,6 +13,11 @@ import {
 import { rotationStyle } from "@/lib/rotation";
 import { formatEventTime, formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
+import {
+  EVENT_DRILLDOWN_TRANSITION,
+  eventMediaTransitionName,
+  eventTitleTransitionName,
+} from "@/lib/view-transitions";
 
 interface EventCardProps {
   event: GeckoEvent;
@@ -45,6 +50,8 @@ export default function EventCard({
   const [imageBroken, setImageBroken] = useState(false);
   const [favorite, setFavorite] = useState(Boolean(event.favorite));
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
+  const mediaTransitionName = eventMediaTransitionName(event.id);
+  const titleTransitionName = eventTitleTransitionName(event.id);
 
   useEffect(() => {
     setFavorite(Boolean(event.favorite));
@@ -112,67 +119,75 @@ export default function EventCard({
   }
 
   const thumbnail = (
-    <div className="relative aspect-video bg-black block w-full">
-      {imageBroken ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(180,220,180,0.18),_transparent_45%),linear-gradient(135deg,_#17212f,_#0d1117_70%)] text-center text-gray-200">
-          <span className="text-2xl">🦎</span>
-          <span className="mt-2 text-sm font-medium">Thumbnail unavailable</span>
-        </div>
-      ) : (
-        <Image
-          src={event.thumbnailUrl}
-          alt={`Motion event at ${formatEventTimestamp(event.timestamp)}`}
-          fill
-          className="object-cover transition-transform duration-300"
-          style={rotationStyle(event.rotation ?? 0)}
-          sizes="(max-width: 768px) 100vw, 33vw"
-          onError={() => setImageBroken(true)}
-        />
-      )}
-      {!selectable && favorite && (
-        <button
-          type="button"
-          onClick={(clickEvent) => {
-            clickEvent.preventDefault();
-            clickEvent.stopPropagation();
-            void handleUnfavorite(event.id);
-          }}
-          disabled={updatingFavorite}
-          className="absolute top-2 right-2 inline-flex items-center justify-center rounded-full bg-black/60 p-1.5 text-amber-300 hover:bg-black/80 hover:text-amber-200 transition-colors disabled:opacity-60"
-          title="Remove favorite"
-          aria-label="Remove favorite"
-        >
-          {updatingFavorite ? (
-            <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-amber-300 border-t-transparent animate-spin" aria-hidden />
-          ) : (
-            <svg className="h-3.5 w-3.5" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538 1.118l-2.8-2.034a1 1 0 00-1.176 0l-2.8 2.034c-.783.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.719c-.783-.57-.38-1.81.588-1.81H7.03a1 1 0 00.95-.69z" />
-            </svg>
-          )}
-        </button>
-      )}
-      {selectable ? (
-        <div className={`absolute inset-0 transition-colors ${selected ? "bg-blue-500/20" : "hover:bg-white/10"}`}>
-          <div className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
-            ${selected ? "bg-blue-500 border-blue-500" : "border-white/70 bg-black/30"}`}>
-            {selected && (
-              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+    <ViewTransition
+      name={mediaTransitionName}
+      share="vt-event-media-share"
+      enter="vt-event-media-enter"
+      exit="vt-event-media-exit"
+      default="none"
+    >
+      <div className="relative aspect-video bg-black block w-full overflow-hidden rounded-t-lg">
+        {imageBroken ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(180,220,180,0.18),_transparent_45%),linear-gradient(135deg,_#17212f,_#0d1117_70%)] text-center text-gray-200">
+            <span className="text-2xl">🦎</span>
+            <span className="mt-2 text-sm font-medium">Thumbnail unavailable</span>
+          </div>
+        ) : (
+          <Image
+            src={event.thumbnailUrl}
+            alt={`Motion event at ${formatEventTimestamp(event.timestamp)}`}
+            fill
+            className="object-cover transition-transform duration-300"
+            style={rotationStyle(event.rotation ?? 0)}
+            sizes="(max-width: 768px) 100vw, 33vw"
+            onError={() => setImageBroken(true)}
+          />
+        )}
+        {!selectable && favorite && (
+          <button
+            type="button"
+            onClick={(clickEvent) => {
+              clickEvent.preventDefault();
+              clickEvent.stopPropagation();
+              void handleUnfavorite(event.id);
+            }}
+            disabled={updatingFavorite}
+            className="absolute top-2 right-2 inline-flex items-center justify-center rounded-full bg-black/60 p-1.5 text-amber-300 hover:bg-black/80 hover:text-amber-200 transition-colors disabled:opacity-60"
+            title="Remove favorite"
+            aria-label="Remove favorite"
+          >
+            {updatingFavorite ? (
+              <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-amber-300 border-t-transparent animate-spin" aria-hidden />
+            ) : (
+              <svg className="h-3.5 w-3.5" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538 1.118l-2.8-2.034a1 1 0 00-1.176 0l-2.8 2.034c-.783.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.719c-.783-.57-.38-1.81.588-1.81H7.03a1 1 0 00.95-.69z" />
               </svg>
             )}
+          </button>
+        )}
+        {selectable ? (
+          <div className={`absolute inset-0 transition-colors ${selected ? "bg-blue-500/20" : "hover:bg-white/10"}`}>
+            <div className={`absolute top-2 left-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+              ${selected ? "bg-blue-500 border-blue-500" : "border-white/70 bg-black/30"}`}>
+              {selected && (
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
-            <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <title>Play</title>
-              <path d="M8 5v14l11-7z" />
-            </svg>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+              <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <title>Play</title>
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </ViewTransition>
   );
 
   return (
@@ -182,14 +197,22 @@ export default function EventCard({
           {thumbnail}
         </button>
       ) : (
-        <Link href={`/events/${event.id}`} className="block">
+        <TransitionLink
+          href={`/events/${event.id}`}
+          transitionTypes={[EVENT_DRILLDOWN_TRANSITION]}
+          className="block"
+        >
           {thumbnail}
-        </Link>
+        </TransitionLink>
       )}
 
       <div className="px-3 py-2 flex items-center justify-between">
         <div>
-          <p className="text-sm text-white font-medium">{timestampLabel || formatEventTime(event.timestamp)}</p>
+          <ViewTransition name={titleTransitionName} share="vt-event-title-share" default="none">
+            <div className="text-sm font-medium text-white">
+              {timestampLabel || formatEventTime(event.timestamp)}
+            </div>
+          </ViewTransition>
           <p className="text-xs text-gray-400 mt-0.5">
             {event.duration ? formatDuration(event.duration) : ""}
             {event.duration && event.motionScore ? " · " : ""}

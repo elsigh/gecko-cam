@@ -1,9 +1,10 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import LiveStream from "@/components/LiveStream";
 import StreamStatus from "@/components/StreamStatus";
 import EventCard from "@/components/EventCard";
+import TransitionLink from "@/components/TransitionLink";
 import { getCachedRecentEvents } from "@/lib/events-cache";
+import { NAVIGATION_TRANSITION } from "@/lib/view-transitions";
 
 async function RecentEventsSidebar() {
   const recent = await getCachedRecentEvents(6);
@@ -15,12 +16,13 @@ async function RecentEventsSidebar() {
           <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
             Recent Events
           </h2>
-          <Link
+          <TransitionLink
             href="/events"
+            transitionTypes={[NAVIGATION_TRANSITION]}
             className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
           >
             View all →
-          </Link>
+          </TransitionLink>
         </div>
       )}
 

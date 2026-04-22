@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { deleteEventsAction } from "@/app/actions/events";
 import EventCard from "@/components/EventCard";
+import TransitionLink from "@/components/TransitionLink";
 import { formatEventDate, formatEventTime } from "@/lib/event-time";
 import {
   markEventDeletedOptimistically,
@@ -12,6 +12,7 @@ import {
   useOptimisticallyDeletedEventIds,
 } from "@/lib/optimistic-event-deletions";
 import type { GeckoEvent, EventListResponse } from "@/lib/types";
+import { NAVIGATION_TRANSITION } from "@/lib/view-transitions";
 
 interface Props {
   initialEvents: GeckoEvent[];
@@ -233,9 +234,13 @@ export default function EventsClient({
           </>
         ) : (
           <>
-            <Link href={backHref} className="text-gray-400 hover:text-gray-200 transition-colors text-sm">
+            <TransitionLink
+              href={backHref}
+              transitionTypes={[NAVIGATION_TRANSITION]}
+              className="text-gray-400 hover:text-gray-200 transition-colors text-sm"
+            >
               {backLabel}
-            </Link>
+            </TransitionLink>
             <h2 className="text-lg font-semibold">{title}</h2>
             {visibleEvents.length > 0 && canManage && (
               <button

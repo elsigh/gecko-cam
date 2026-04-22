@@ -1,3 +1,201 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --vt-duration-fast: 220ms;
+  --vt-duration-base: 320ms;
+  --vt-duration-slow: 420ms;
+  --vt-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --vt-ease-snappy: cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+@keyframes gecko-vt-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+    filter: saturate(0.88) blur(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: saturate(1) blur(0);
+  }
+}
+
+@keyframes gecko-vt-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: saturate(1) blur(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(1.01);
+    filter: saturate(0.9) blur(8px);
+  }
+}
+
+@keyframes gecko-vt-drill-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.94);
+    filter: blur(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes gecko-vt-drill-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-18px) scale(1.04);
+  }
+}
+
+@keyframes gecko-vt-slide-left-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.985);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes gecko-vt-slide-left-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-24px) scale(1.015);
+  }
+}
+
+@keyframes gecko-vt-slide-right-in {
+  from {
+    opacity: 0;
+    transform: translateX(-28px) scale(0.985);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes gecko-vt-slide-right-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(24px) scale(1.015);
+  }
+}
+
+@supports (view-transition-name: none) {
+  ::view-transition-group(.vt-page-base),
+  ::view-transition-group(.vt-page-nav),
+  ::view-transition-group(.vt-page-drilldown),
+  ::view-transition-group(.vt-page-return),
+  ::view-transition-group(.vt-page-swipe-left),
+  ::view-transition-group(.vt-page-swipe-right) {
+    animation-duration: var(--vt-duration-base);
+    animation-timing-function: var(--vt-ease-standard);
+  }
+
+  ::view-transition-old(.vt-page-base),
+  ::view-transition-old(.vt-page-nav),
+  ::view-transition-old(.vt-page-enter),
+  ::view-transition-old(.vt-page-exit) {
+    animation: gecko-vt-fade-out var(--vt-duration-fast) var(--vt-ease-standard) both;
+  }
+
+  ::view-transition-new(.vt-page-base),
+  ::view-transition-new(.vt-page-nav),
+  ::view-transition-new(.vt-page-enter),
+  ::view-transition-new(.vt-page-exit),
+  ::view-transition-new(.vt-page-update) {
+    animation: gecko-vt-fade-in var(--vt-duration-base) var(--vt-ease-standard) both;
+  }
+
+  ::view-transition-old(.vt-page-drilldown) {
+    animation: gecko-vt-drill-out var(--vt-duration-fast) var(--vt-ease-standard) both;
+  }
+
+  ::view-transition-new(.vt-page-drilldown) {
+    animation: gecko-vt-drill-in var(--vt-duration-slow) var(--vt-ease-snappy) both;
+  }
+
+  ::view-transition-old(.vt-page-return),
+  ::view-transition-old(.vt-page-swipe-right) {
+    animation: gecko-vt-slide-right-out var(--vt-duration-fast) var(--vt-ease-standard) both;
+  }
+
+  ::view-transition-new(.vt-page-return),
+  ::view-transition-new(.vt-page-swipe-right) {
+    animation: gecko-vt-slide-right-in var(--vt-duration-base) var(--vt-ease-snappy) both;
+  }
+
+  ::view-transition-old(.vt-page-swipe-left) {
+    animation: gecko-vt-slide-left-out var(--vt-duration-fast) var(--vt-ease-standard) both;
+  }
+
+  ::view-transition-new(.vt-page-swipe-left) {
+    animation: gecko-vt-slide-left-in var(--vt-duration-base) var(--vt-ease-snappy) both;
+  }
+
+  ::view-transition-group(.vt-event-media-share),
+  ::view-transition-group(.vt-event-media-enter),
+  ::view-transition-group(.vt-event-media-exit) {
+    animation-duration: var(--vt-duration-slow);
+    animation-timing-function: var(--vt-ease-snappy);
+  }
+
+  ::view-transition-old(.vt-event-media-share),
+  ::view-transition-new(.vt-event-media-share),
+  ::view-transition-old(.vt-event-media-enter),
+  ::view-transition-new(.vt-event-media-enter),
+  ::view-transition-old(.vt-event-media-exit),
+  ::view-transition-new(.vt-event-media-exit) {
+    border-radius: 1rem;
+    overflow: clip;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  }
+
+  ::view-transition-group(.vt-event-title-share) {
+    animation-duration: var(--vt-duration-fast);
+    animation-timing-function: var(--vt-ease-standard);
+  }
+
+  ::view-transition-old(.vt-event-title-share) {
+    animation: gecko-vt-fade-out var(--vt-duration-fast) var(--vt-ease-standard) both;
+  }
+
+  ::view-transition-new(.vt-event-title-share) {
+    animation: gecko-vt-fade-in var(--vt-duration-fast) var(--vt-ease-standard) both;
+  }
+}

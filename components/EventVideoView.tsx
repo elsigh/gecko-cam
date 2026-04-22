@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { addTransitionType, startTransition, useEffect, useRef, useState, ViewTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { deleteEventAction, setFavoriteEventAction } from "@/app/actions/events";
+import TransitionLink from "@/components/TransitionLink";
 import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
@@ -11,6 +11,13 @@ import {
 import { formatEventCompactTime, formatEventTimestamp } from "@/lib/event-time";
 import { rotationStyle } from "@/lib/rotation";
 import type { GeckoEvent } from "@/lib/types";
+import {
+  EVENT_NEWER_TRANSITION,
+  EVENT_OLDER_TRANSITION,
+  EVENT_RETURN_TRANSITION,
+  eventMediaTransitionName,
+  eventTitleTransitionName,
+} from "@/lib/view-transitions";
 
 interface EventNavigationTarget {
   id: string;
@@ -45,6 +52,8 @@ export default function EventVideoView({
   const [favorite, setFavorite] = useState(Boolean(event.favorite));
   const [favoriting, setFavoriting] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  const mediaTransitionName = eventMediaTransitionName(event.id);
+  const titleTransitionName = eventTitleTransitionName(event.id);
 
   useEffect(() => {
     setFavorite(Boolean(event.favorite));
@@ -70,14 +79,23 @@ export default function EventVideoView({
 
       if (deleting || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
 
-      if (e.key === "ArrowLeft" && navigation?.newer) {
+      const newer = navigation?.newer;
+      const older = navigation?.older;
+
+      if (e.key === "ArrowLeft" && newer) {
         e.preventDefault();
-        router.push(`/events/${navigation.newer.id}`);
+        startTransition(() => {
+          addTransitionType(EVENT_NEWER_TRANSITION);
+          router.push(`/events/${newer.id}`);
+        });
       }
 
-      if (e.key === "ArrowRight" && navigation?.older) {
+      if (e.key === "ArrowRight" && older) {
         e.preventDefault();
-        router.push(`/events/${navigation.older.id}`);
+        startTransition(() => {
+          addTransitionType(EVENT_OLDER_TRANSITION);
+          router.push(`/events/${older.id}`);
+        });
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -178,19 +196,22 @@ export default function EventVideoView({
     label,
     timestamp,
     direction,
+    transitionType,
   }: {
     href: string;
     label: string;
     timestamp: number;
     direction: "left" | "right";
+    transitionType: string;
   }) {
     const iconPath = direction === "left"
       ? "M15 19l-7-7 7-7"
       : "M9 5l7 7-7 7";
 
     return (
-      <Link
+      <TransitionLink
         href={href}
+        transitionTypes={[transitionType]}
         className="group flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-gray-200 transition-colors hover:border-white/20 hover:bg-white/10 hover:text-white"
       >
         {direction === "left" && (
@@ -214,7 +235,7 @@ export default function EventVideoView({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={iconPath} />
           </svg>
         )}
-      </Link>
+      </TransitionLink>
     );
   }
 
@@ -258,8 +279,9 @@ export default function EventVideoView({
     }
 
     return (
-      <Link
+      <TransitionLink
         href={backHref}
+        transitionTypes={[EVENT_RETURN_TRANSITION]}
         className="flex items-center gap-2 text-sm text-gray-300 transition-colors hover:text-white"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -267,7 +289,7 @@ export default function EventVideoView({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         {backLabel}
-      </Link>
+      </TransitionLink>
     );
   }
 
@@ -368,6 +390,7 @@ export default function EventVideoView({
                 label="After"
                 timestamp={navigation.newer.timestamp}
                 direction="left"
+                transitionType={EVENT_NEWER_TRANSITION}
               />
             ) : (
               <NavigationPlaceholder
@@ -381,12 +404,16 @@ export default function EventVideoView({
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-gray-500 sm:text-[11px] sm:tracking-[0.24em]">
                 This Event
               </p>
-              <p className="truncate text-xs text-white/90 sm:hidden">
-                {formatEventCompactTime(event.timestamp)}
-              </p>
-              <p className="hidden truncate text-sm text-white/90 sm:block">
-                {formatEventTimestamp(event.timestamp)}
-              </p>
+              <ViewTransition name={titleTransitionName} share="vt-event-title-share" default="none">
+                <div>
+                  <p className="truncate text-xs text-white/90 sm:hidden">
+                    {formatEventCompactTime(event.timestamp)}
+                  </p>
+                  <p className="hidden truncate text-sm text-white/90 sm:block">
+                    {formatEventTimestamp(event.timestamp)}
+                  </p>
+                </div>
+              </ViewTransition>
               {favorite && (
                 <p className="hidden text-[11px] uppercase tracking-[0.24em] text-amber-300 sm:block">
                   Favorited
@@ -400,6 +427,7 @@ export default function EventVideoView({
                 label="Before"
                 timestamp={navigation.older.timestamp}
                 direction="right"
+                transitionType={EVENT_OLDER_TRANSITION}
               />
             ) : (
               <NavigationPlaceholder
@@ -417,31 +445,39 @@ export default function EventVideoView({
       </div>
 
       <div className="flex-1 flex items-center justify-center min-h-0 p-4">
-        {mediaError ? (
-          <div className="flex h-full w-full max-w-4xl items-center justify-center rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(187,247,208,0.14),_transparent_35%),linear-gradient(135deg,_rgba(17,24,39,0.96),_rgba(3,7,18,0.98))] p-8 text-center">
-            <div>
-              <div className="text-4xl">🦎</div>
-              <p className="mt-4 text-lg font-semibold text-white">Clip unavailable</p>
-              <p className="mt-2 text-sm text-gray-400">
-                This event record exists, but the media file could not be loaded.
-              </p>
+        <ViewTransition
+          name={mediaTransitionName}
+          share="vt-event-media-share"
+          enter="vt-event-media-enter"
+          exit="vt-event-media-exit"
+          default="none"
+        >
+          {mediaError ? (
+            <div className="flex h-full w-full max-w-4xl items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(187,247,208,0.14),_transparent_35%),linear-gradient(135deg,_rgba(17,24,39,0.96),_rgba(3,7,18,0.98))] p-8 text-center">
+              <div>
+                <div className="text-4xl">🦎</div>
+                <p className="mt-4 text-lg font-semibold text-white">Clip unavailable</p>
+                <p className="mt-2 text-sm text-gray-400">
+                  This event record exists, but the media file could not be loaded.
+                </p>
+              </div>
             </div>
-          </div>
-        ) : (
-          <video
-            ref={videoRef}
-            src={event.clipUrl}
-            poster={event.thumbnailUrl}
-            className="max-w-full max-h-full object-contain transition-transform duration-300"
-            style={rotationStyle(event.rotation ?? 0)}
-            controls
-            autoPlay
-            playsInline
-            onError={() => setMediaError(true)}
-          >
-            <track kind="captions" />
-          </video>
-        )}
+          ) : (
+            <video
+              ref={videoRef}
+              src={event.clipUrl}
+              poster={event.thumbnailUrl}
+              className="max-w-full max-h-full object-contain transition-transform duration-300"
+              style={rotationStyle(event.rotation ?? 0)}
+              controls
+              autoPlay
+              playsInline
+              onError={() => setMediaError(true)}
+            >
+              <track kind="captions" />
+            </video>
+          )}
+        </ViewTransition>
       </div>
     </section>
   );
