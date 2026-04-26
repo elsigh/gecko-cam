@@ -1,0 +1,25 @@
+pi/gecko_cam.py
+  c8315278b857b284 28,61-66,119-162,294,370-385,513,516,531,686,688,690
+pi/README.md
+  c8315278b857b284 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "cc9540bf608abbebd0d556cdf73ed036c2aa291e",
+  "prompts": {
+    "c8315278b857b284": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019da948-7067-7341-81da-4e06b5b4a5eb",
+        "model": "gpt-5.4"
+      },
+      "human_author": "elsigh",
+      "messages": [],
+      "total_additions": 75,
+      "total_deletions": 3,
+      "accepted_lines": 75,
+      "overriden_lines": 0
+    }
+  }
+}
