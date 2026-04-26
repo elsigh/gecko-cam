@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
@@ -57,6 +58,12 @@ CAMERA_ROTATION = 180        # upright source feed so browser/native controls st
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
 SUSTAINED_MOTION_FRAMES = 4   # require motion for N consecutive frames (~0.13s)
+FEEDING_WINDOW_START_HOUR = 20
+FEEDING_WINDOW_START_MINUTE = 50
+FEEDING_WINDOW_END_HOUR = 21
+FEEDING_WINDOW_END_MINUTE = 20
+FEEDING_WINDOW_MOTION_THRESHOLD = 1400
+FEEDING_WINDOW_SUSTAINED_MOTION_FRAMES = 2
 # If total motion pixels exceed this fraction of the frame it's almost certainly
 # a global lighting change (lamp on/off), not the gecko.
 MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
@@ -107,6 +114,50 @@ logging.basicConfig(
 )
 log = logging.getLogger("gecko_cam")
 remote_log_cooldowns: dict[str, float] = {}
+
+
+@dataclass(frozen=True)
+class DetectionProfile:
+    name: str
+    motion_threshold: float
+    sustained_motion_frames: int
+
+
+DEFAULT_DETECTION_PROFILE = DetectionProfile(
+    name="default",
+    motion_threshold=MOTION_THRESHOLD,
+    sustained_motion_frames=SUSTAINED_MOTION_FRAMES,
+)
+
+FEEDING_DETECTION_PROFILE = DetectionProfile(
+    name="feeding_window",
+    motion_threshold=FEEDING_WINDOW_MOTION_THRESHOLD,
+    sustained_motion_frames=FEEDING_WINDOW_SUSTAINED_MOTION_FRAMES,
+)
+
+
+def _minutes_since_midnight(hour: int, minute: int) -> int:
+    return hour * 60 + minute
+
+
+def _is_feeding_window(now: float) -> bool:
+    local = time.localtime(now)
+    current = _minutes_since_midnight(local.tm_hour, local.tm_min)
+    start = _minutes_since_midnight(
+        FEEDING_WINDOW_START_HOUR,
+        FEEDING_WINDOW_START_MINUTE,
+    )
+    end = _minutes_since_midnight(
+        FEEDING_WINDOW_END_HOUR,
+        FEEDING_WINDOW_END_MINUTE,
+    )
+    return start <= current < end
+
+
+def _detection_profile_for(now: float) -> DetectionProfile:
+    if _is_feeding_window(now):
+        return FEEDING_DETECTION_PROFILE
+    return DEFAULT_DETECTION_PROFILE
 
 
 def _is_armed() -> bool:
@@ -240,6 +291,7 @@ def run() -> None:
     recent_brightness_samples: deque[tuple[float, float]] = deque()
     last_brightness_mode_switch = 0.0
     last_brightness_mode_switch_reset = 0.0
+    active_detection_profile = DEFAULT_DETECTION_PROFILE
 
     def flush_motion_summary(force: bool = False) -> None:
         nonlocal motion_summary_started, motion_summary
@@ -315,6 +367,22 @@ def run() -> None:
 
             lores = picam2.capture_array("lores")
             motion_summary["frames"] += 1
+            detection_profile = _detection_profile_for(now)
+            if detection_profile != active_detection_profile:
+                active_detection_profile = detection_profile
+                log.info(
+                    "Detection profile → %s (threshold=%.0f, sustained=%d)",
+                    detection_profile.name,
+                    detection_profile.motion_threshold,
+                    detection_profile.sustained_motion_frames,
+                )
+                _log_remote_motion(
+                    "detection_profile_changed",
+                    min_interval=0,
+                    profile=detection_profile.name,
+                    motionThreshold=detection_profile.motion_threshold,
+                    sustainedMotionFrames=detection_profile.sustained_motion_frames,
+                )
 
             # ── Brightness-delta filter (catches lamp thermostat transitions) ──
             # YUV420 layout: Y plane occupies the first LORES_H rows.
@@ -442,10 +510,10 @@ def run() -> None:
                 continue
 
             # ── Sustained-motion gate (avoids single-frame flicker) ────────────
-            if motion_score > MOTION_THRESHOLD * NEAR_THRESHOLD_RATIO:
+            if motion_score > detection_profile.motion_threshold * NEAR_THRESHOLD_RATIO:
                 motion_summary["nearThresholdFrames"] += 1
 
-            if motion_score > MOTION_THRESHOLD:
+            if motion_score > detection_profile.motion_threshold:
                 motion_summary["aboveThresholdFrames"] += 1
                 consecutive_high_motion += 1
                 if capturing:
@@ -460,7 +528,7 @@ def run() -> None:
 
             # ── Trigger new capture ────────────────────────────────────────────
             if (
-                consecutive_high_motion >= SUSTAINED_MOTION_FRAMES
+                consecutive_high_motion >= detection_profile.sustained_motion_frames
                 and not capturing
             ):
                 trigger_frames = consecutive_high_motion
@@ -615,8 +683,11 @@ def run() -> None:
                     "capture_started",
                     min_interval=0,
                     clipPath=str(clip_path),
+                    detectionProfile=detection_profile.name,
                     motionScore=round(motion_score, 1),
+                    motionThreshold=detection_profile.motion_threshold,
                     consecutiveFrames=trigger_frames,
+                    sustainedMotionFrames=detection_profile.sustained_motion_frames,
                     brightnessDelta=round(brightness_delta, 2),
                     coverageFraction=round(coverage_fraction, 4),
                 )
