@@ -1,0 +1,25 @@
+app/api/login/route.ts
+  c8315278b857b284 4-11,13-28,34-41,46-53,59-61
+app/login/page.tsx
+  c8315278b857b284 18,24-29,35,44,47-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0718d33fd4646be5c5c803b218e6313454575586",
+  "prompts": {
+    "c8315278b857b284": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019da948-7067-7341-81da-4e06b5b4a5eb",
+        "model": "gpt-5.4"
+      },
+      "human_author": "elsigh",
+      "messages": [],
+      "total_additions": 55,
+      "total_deletions": 24,
+      "accepted_lines": 55,
+      "overriden_lines": 0
+    }
+  }
+}
