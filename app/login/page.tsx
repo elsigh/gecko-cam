@@ -15,37 +15,24 @@ function normalizeRedirectPath(from: string | null): string {
 function LoginForm() {
   const searchParams = useSearchParams();
   const from = normalizeRedirectPath(searchParams.get("from"));
+  const error = searchParams.get("error");
 
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(false);
-
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-
-    if (res.ok) {
-      window.location.assign(from);
-    } else {
-      setError(true);
-      setLoading(false);
-    }
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form
+      method="POST"
+      action={`/api/login?from=${encodeURIComponent(from)}`}
+      onSubmit={() => setLoading(true)}
+      className="flex flex-col gap-4"
+    >
       <div>
         <label htmlFor="password" className="block text-sm text-gray-400 mb-1">
           Password
         </label>
         <input
+          name="password"
           id="password"
           type="password"
           value={password}
@@ -54,8 +41,11 @@ function LoginForm() {
           required
         />
       </div>
-      {error && (
+      {error === "incorrect" && (
         <p className="text-red-400 text-sm">Incorrect password.</p>
+      )}
+      {error === "config" && (
+        <p className="text-red-400 text-sm">Login is not configured correctly.</p>
       )}
       <button
         type="submit"
