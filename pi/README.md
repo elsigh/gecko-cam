@@ -72,6 +72,8 @@ In `gecko_cam.py`:
 - `MOTION_THRESHOLD` — higher = less sensitive.
 - `SUSTAINED_MOTION_FRAMES` — consecutive frames above threshold before trigger (reduces light-flicker false positives).
 - `FEEDING_WINDOW_*` — more sensitive evening profile for the usual bug-hunt window, so slow emergence from the hide triggers earlier without making the whole day noisier.
+- `MIN_CLIP_SECONDS` — once a capture starts, keep recording until at least this many seconds have elapsed even if motion briefly pauses.
+- `MAX_CLIP_SECONDS` — hard ceiling for a single capture when activity keeps going.
 - `RING_BUFFER_SECONDS` — extra circular pre-roll kept before the trigger; raise this if action tends to start before motion crosses threshold.
 - `KEYFRAME_INTERVAL_FRAMES` — shorter GOPs preserve more of the circular pre-roll when a clip starts, at a modest compression cost.
 - `MAX_COVERAGE_FRACTION` — ignore frames where too much of the enclosure appears to move at once.

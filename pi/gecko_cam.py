@@ -49,7 +49,8 @@ MOTION_THRESHOLD = 2000      # revert closer to the prior tuning to avoid light-
 COOLDOWN_SECONDS = 10        # restore a less aggressive gap between clips
 WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detection
 POST_MOTION_HOLD = 8         # restore the earlier tail length after motion stops
-MAX_CLIP_SECONDS = 35        # longer than before, but still bounded
+MIN_CLIP_SECONDS = 30        # don't end a capture early just because motion paused briefly
+MAX_CLIP_SECONDS = 45        # still bounded, but lets interesting events run past 30s
 RING_BUFFER_SECONDS = 15     # seconds of pre-motion buffer
 FPS = 30
 KEYFRAME_INTERVAL_FRAMES = 15  # 0.5s GOP so CircularOutput pre-roll starts close to the trigger
@@ -340,7 +341,9 @@ def run() -> None:
             if capturing:
                 elapsed = now - capture_start_time
                 idle = now - last_motion_during_capture
-                if elapsed >= MAX_CLIP_SECONDS or idle >= POST_MOTION_HOLD:
+                if elapsed >= MAX_CLIP_SECONDS or (
+                    elapsed >= MIN_CLIP_SECONDS and idle >= POST_MOTION_HOLD
+                ):
                     circular.stop()
                     capturing = False
                     log.info(
