@@ -1,7 +1,7 @@
 import { put } from "@vercel/blob";
 import type { GeckoEvent, Rotation } from "./types";
 
-const MAX_EVENTS = 200;
+const MAX_RECENT_NON_FAVORITES = 200;
 const PAGE_SIZE = 12;
 const BLOB_PREFIX = "gecko-cam-data";
 const ROTATION_FILENAME = "rotation-v3.json";
@@ -86,14 +86,41 @@ function applyFavorites(events: GeckoEvent[], favoriteIds: Set<string>): GeckoEv
   }));
 }
 
+function retainEvents(events: GeckoEvent[], favoriteIds: Set<string>): GeckoEvent[] {
+  let nonFavoriteCount = 0;
+
+  return applyFavorites(events, favoriteIds).filter((event) => {
+    if (event.favorite) return true;
+    if (nonFavoriteCount >= MAX_RECENT_NON_FAVORITES) return false;
+    nonFavoriteCount += 1;
+    return true;
+  });
+}
+
 export async function listAllEvents(): Promise<GeckoEvent[]> {
   const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
   return applyFavorites(events, favoriteIds);
 }
 
+export async function listFavoriteEvents(): Promise<{
+  events: GeckoEvent[];
+  missingCount: number;
+}> {
+  const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
+  const favorites = applyFavorites(events, favoriteIds).filter((event) => event.favorite);
+
+  return {
+    events: favorites,
+    missingCount: Math.max(0, favoriteIds.size - favorites.length),
+  };
+}
+
 export async function saveEvent(event: GeckoEvent): Promise<void> {
-  const events = await readEvents();
-  const newList = [event, ...events.filter((e) => e.id !== event.id)].slice(0, MAX_EVENTS);
+  const [events, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
+  const newList = retainEvents(
+    [event, ...events.filter((current) => current.id !== event.id)],
+    favoriteIds
+  );
   await writeBlob("events.json", newList);
 }
 
@@ -130,7 +157,17 @@ export async function setEventFavorite(
     favoriteIds.delete(id);
   }
 
-  await writeFavoriteIds(favoriteIds);
+  const nextEvents = retainEvents(
+    events.map((current) => (
+      current.id === id ? { ...current, favorite } : current
+    )),
+    favoriteIds
+  );
+
+  await Promise.all([
+    writeBlob("events.json", nextEvents),
+    writeFavoriteIds(favoriteIds),
+  ]);
   return { ...event, favorite };
 }
 

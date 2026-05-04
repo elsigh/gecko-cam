@@ -256,9 +256,9 @@ export default function EventsClient({
 
       {visibleEvents.length === 0 && !cursor && (
         <div className="text-center py-20">
-          <p className="text-gray-500">{favoritesOnly ? "No favorite clips yet." : emptyTitle}</p>
+          <p className="text-gray-500">{emptyTitle}</p>
           <p className="text-gray-600 text-sm mt-1">
-            {favoritesOnly ? "Star the clips you want to keep handy, and they will show up here." : emptyBody}
+            {emptyBody}
           </p>
         </div>
       )}
