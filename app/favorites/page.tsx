@@ -1,13 +1,16 @@
 import { Suspense } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import EventsClient from "@/components/EventsClient";
-import { validateSessionToken } from "@/lib/auth";
+import { validateUserAuthValues } from "@/lib/auth";
 import { listFavoriteEvents } from "@/lib/kv";
 
 async function FavoritesList() {
-  const cookieStore = await cookies();
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
   const { events: favorites, missingCount } = await listFavoriteEvents();
-  const canManage = validateSessionToken(cookieStore.get("gecko_session")?.value);
+  const canManage = validateUserAuthValues(
+    cookieStore.get("gecko_session")?.value,
+    headerStore.get("authorization")
+  );
   const emptyTitle = missingCount > 0
     ? `${missingCount} saved favorite clip${missingCount === 1 ? "" : "s"} expired`
     : "No favorite clips yet.";

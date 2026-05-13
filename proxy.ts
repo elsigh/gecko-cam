@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/armed", "/api/events", "/api/upload-token", "/api/motion-log", "/icon", "/favicon"];
-const PUBLIC_EVENT_ROUTE = /^\/events\/[^/]+(?:\/opengraph-image)?$/;
+const AUTH_REALM = "Gecko Cam";
+const PUBLIC_PATHS = ["/favicon", "/icon"];
 
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || PUBLIC_EVENT_ROUTE.test(pathname);
+  return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 }
 
 async function makeToken(password: string, secret: string): Promise<string> {
@@ -22,6 +22,34 @@ async function makeToken(password: string, secret: string): Promise<string> {
     .join("");
 }
 
+function getBasicAuthPassword(authorization: string | null): string | null {
+  if (!authorization?.startsWith("Basic ")) return null;
+
+  try {
+    const decoded = atob(authorization.slice(6));
+    const separator = decoded.indexOf(":");
+    if (separator === -1) return null;
+    return decoded.slice(separator + 1);
+  } catch {
+    return null;
+  }
+}
+
+function unauthorized(request: NextRequest) {
+  const headers = new Headers({
+    "WWW-Authenticate": `Basic realm="${AUTH_REALM}", charset="UTF-8"`,
+  });
+
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
+  }
+
+  return new NextResponse("Authentication required", {
+    status: 401,
+    headers,
+  });
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -30,16 +58,20 @@ export async function proxy(request: NextRequest) {
   const sitePassword = process.env.SITE_PASSWORD;
   const secret = process.env.API_SECRET;
 
-  if (!sitePassword || !secret) return NextResponse.next();
+  if (!sitePassword) return NextResponse.next();
 
-  const expectedToken = await makeToken(sitePassword, secret);
+  const apiSecret = request.headers.get("x-api-secret");
+  if (secret && apiSecret === secret) return NextResponse.next();
+
+  const expectedToken = secret ? await makeToken(sitePassword, secret) : null;
   const cookieToken = request.cookies.get("gecko_session")?.value;
+  const basicPassword = getBasicAuthPassword(request.headers.get("authorization"));
 
-  if (cookieToken === expectedToken) return NextResponse.next();
+  if ((expectedToken && cookieToken === expectedToken) || basicPassword === sitePassword) {
+    return NextResponse.next();
+  }
 
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("from", pathname);
-  return NextResponse.redirect(loginUrl);
+  return unauthorized(request);
 }
 
 export const config = {

@@ -1,10 +1,10 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { refresh, revalidatePath, updateTag } from "next/cache";
 import { deleteEvent, deleteEvents, setEventFavorite, setEventRotation } from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
-import { validateSessionToken } from "@/lib/auth";
+import { validateUserAuthValues } from "@/lib/auth";
 import { EVENTS_LIST_TAG, getEventTag } from "@/lib/events-cache";
 import type { GeckoEvent, Rotation } from "@/lib/types";
 
@@ -34,8 +34,11 @@ function updateEventTags(ids: string[]) {
 }
 
 async function hasValidSession(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return validateSessionToken(cookieStore.get("gecko_session")?.value);
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
+  return validateUserAuthValues(
+    cookieStore.get("gecko_session")?.value,
+    headerStore.get("authorization")
+  );
 }
 
 export async function deleteEventAction(id: string): Promise<DeleteResult> {

@@ -46,6 +46,9 @@ export default function LoginForm() {
       {error === "config" && (
         <p className="text-red-400 text-sm">Login is not configured correctly.</p>
       )}
+      {error === "rate_limited" && (
+        <p className="text-red-400 text-sm">Too many login attempts. Try again in a few minutes.</p>
+      )}
       <button
         type="submit"
         disabled={loading}

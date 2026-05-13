@@ -1,13 +1,16 @@
 import { Suspense } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import EventsClient from "@/components/EventsClient";
-import { validateSessionToken } from "@/lib/auth";
+import { validateUserAuthValues } from "@/lib/auth";
 import { listEvents } from "@/lib/kv";
 
 async function EventsList() {
-  const cookieStore = await cookies();
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
   const { events, nextCursor } = await listEvents();
-  const canManage = validateSessionToken(cookieStore.get("gecko_session")?.value);
+  const canManage = validateUserAuthValues(
+    cookieStore.get("gecko_session")?.value,
+    headerStore.get("authorization")
+  );
   return <EventsClient initialEvents={events} initialCursor={nextCursor} canManage={canManage} />;
 }
 

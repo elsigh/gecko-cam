@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken } from "@/lib/auth";
+import { clearRateLimit, getRequestIp, takeRateLimit } from "@/lib/rate-limit";
+
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const LOGIN_ATTEMPT_LIMIT = 10;
 
 function normalizeRedirectPath(from: string | null): string {
   if (!from || !from.startsWith("/") || from.startsWith("//")) {
@@ -13,6 +17,32 @@ export async function POST(request: NextRequest) {
   const from = normalizeRedirectPath(request.nextUrl.searchParams.get("from"));
   const contentType = request.headers.get("content-type") ?? "";
   const isJsonRequest = contentType.includes("application/json");
+  const rateLimitKey = `login:${getRequestIp(request)}`;
+  const rateLimit = takeRateLimit(rateLimitKey, {
+    limit: LOGIN_ATTEMPT_LIMIT,
+    windowMs: LOGIN_WINDOW_MS,
+  });
+
+  if (!rateLimit.ok) {
+    if (!isJsonRequest) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("error", "rate_limited");
+      if (from !== "/") {
+        loginUrl.searchParams.set("from", from);
+      }
+      return NextResponse.redirect(loginUrl, 303);
+    }
+
+    return NextResponse.json(
+      { error: "Too many login attempts" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      }
+    );
+  }
 
   let password = "";
   try {
@@ -55,6 +85,7 @@ export async function POST(request: NextRequest) {
   }
 
   const token = createSessionToken(password, secret);
+  clearRateLimit(rateLimitKey);
 
   const response = isJsonRequest
     ? NextResponse.json({ ok: true })
