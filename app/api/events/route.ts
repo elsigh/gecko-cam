@@ -28,16 +28,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: GeckoEvent;
+  let body: Partial<GeckoEvent>;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { id, timestamp, clipUrl, thumbnailUrl, duration, motionScore } = body;
+  const {
+    id,
+    timestamp,
+    clipUrl,
+    thumbnailUrl,
+    duration,
+    motionScore,
+    eventType,
+    behaviorSummary,
+    sourceZone,
+    targetZone,
+    retentionCategory,
+  } = body;
 
-  if (!id || !timestamp || !clipUrl || !thumbnailUrl) {
+  if (!id || !timestamp || !thumbnailUrl) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
@@ -46,15 +58,20 @@ export async function POST(request: NextRequest) {
   const event: GeckoEvent = {
     id,
     timestamp: Number(timestamp),
-    clipUrl,
     thumbnailUrl,
+    clipUrl: clipUrl ?? null,
     duration: Number(duration) || 0,
     motionScore: Number(motionScore) || 0,
     rotation,
+    eventType,
+    behaviorSummary,
+    sourceZone: sourceZone ?? null,
+    targetZone: targetZone ?? null,
+    retentionCategory,
   };
 
   try {
-    const mediaReady = await eventMediaIsAvailable(clipUrl, thumbnailUrl);
+    const mediaReady = await eventMediaIsAvailable(clipUrl ?? null, thumbnailUrl);
     if (!mediaReady) {
       return NextResponse.json(
         { error: "Uploaded clip or thumbnail is not reachable yet" },

@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { getEventSummary } from "@/lib/event-behavior";
 import { getCachedEvent } from "@/lib/events-cache";
 import { formatEventTimestamp } from "@/lib/event-time";
 import { rotationStyle, rotationTransform } from "@/lib/rotation";
@@ -16,8 +17,11 @@ export default async function OgImage({
   const event = await getCachedEvent(id);
 
   const date = event ? formatEventTimestamp(event.timestamp) : null;
-  const duration = event?.duration ? `${Math.round(event.duration)}s clip` : "Motion event";
+  const duration = event?.clipUrl
+    ? (event.duration ? `${Math.round(event.duration)}s clip` : "Clip saved")
+    : "Thumbnail only";
   const score = event?.motionScore ? `score ${Math.round(event.motionScore)}` : null;
+  const summary = event ? getEventSummary(event) : null;
   const rotation = event?.rotation ?? 0;
   const imageStyle = rotationStyle(rotation);
   const backgroundTransform = rotationTransform(rotation);
@@ -155,7 +159,7 @@ export default async function OgImage({
                     Gecko Cam
                   </span>
                   <span style={{ fontSize: 22, opacity: 0.8 }}>
-                    MauMau motion capture
+                    {summary ?? "MauMau motion capture"}
                   </span>
                 </div>
               </div>

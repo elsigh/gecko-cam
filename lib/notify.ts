@@ -1,4 +1,5 @@
 import type { GeckoEvent } from "./types";
+import { getEventSummary, shouldNotifyEvent } from "./event-behavior";
 import { getAppUrl } from "./site-url";
 
 function formatDuration(seconds: number): string {
@@ -11,14 +12,15 @@ function formatDuration(seconds: number): string {
 export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
   const token = process.env.SLACK_BOT_TOKEN;
   const channelId = process.env.SLACK_NOTIFY_CHANNEL_ID;
-  if (!token || !channelId) return;
+  if (!token || !channelId || !shouldNotifyEvent(event)) return;
 
   const score = event.motionScore ? ` · score ${Math.round(event.motionScore)}` : "";
   const eventUrl = `${getAppUrl()}/events/${event.id}`;
   const duration = formatDuration(event.duration);
   const detailBits = [duration, score.replace(/^ · /, "")].filter(Boolean);
+  const summary = getEventSummary(event);
   const text = [
-    `🦎 MauMau spotted!${score}`,
+    summary ? `🦎 ${summary}${score}` : `🦎 MauMau spotted!${score}`,
     detailBits.length > 0 ? detailBits.join(" · ") : null,
     eventUrl,
   ]
@@ -40,7 +42,7 @@ export async function notifyGeckoEvent(event: GeckoEvent): Promise<void> {
             text: {
               type: "mrkdwn",
               text: [
-                `*🦎 MauMau spotted!*${score}`,
+                summary ? `*🦎 ${summary}*${score}` : `*🦎 MauMau spotted!*${score}`,
                 detailBits.length > 0 ? detailBits.join(" · ") : null,
                 `<${eventUrl}|Open event page>`,
               ]

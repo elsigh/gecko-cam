@@ -38,6 +38,7 @@ from picamera2.encoders import H264Encoder
 from picamera2.outputs import CircularOutput, FfmpegOutput
 
 import requests
+from event_classifier import MotionTracePoint, classify_event, zone_for_point
 from upload_event import upload_event
 
 # ── Configuration ──────────────────────────────────────────────────────────────
@@ -56,6 +57,10 @@ FPS = 30
 KEYFRAME_INTERVAL_FRAMES = 15  # 0.5s GOP so CircularOutput pre-roll starts close to the trigger
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 CAMERA_ROTATION = 180        # upright source feed so browser/native controls stay upright
+TRACE_HISTORY_SECONDS = 20   # matches the pre-roll window we use for behavior labeling
+TRACE_MIN_CONTOUR_AREA = 80
+FEEDING_WINDOW_MIN_CLIP_SECONDS = 40
+FEEDING_WINDOW_MAX_CLIP_SECONDS = 60
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
 SUSTAINED_MOTION_FRAMES = 4   # require motion for N consecutive frames (~0.13s)
@@ -124,6 +129,13 @@ class DetectionProfile:
     sustained_motion_frames: int
 
 
+@dataclass(frozen=True)
+class CapturePolicy:
+    name: str
+    min_clip_seconds: int
+    max_clip_seconds: int
+
+
 DEFAULT_DETECTION_PROFILE = DetectionProfile(
     name="default",
     motion_threshold=MOTION_THRESHOLD,
@@ -134,6 +146,18 @@ FEEDING_DETECTION_PROFILE = DetectionProfile(
     name="feeding_window",
     motion_threshold=FEEDING_WINDOW_MOTION_THRESHOLD,
     sustained_motion_frames=FEEDING_WINDOW_SUSTAINED_MOTION_FRAMES,
+)
+
+DEFAULT_CAPTURE_POLICY = CapturePolicy(
+    name="default",
+    min_clip_seconds=MIN_CLIP_SECONDS,
+    max_clip_seconds=MAX_CLIP_SECONDS,
+)
+
+FEEDING_CAPTURE_POLICY = CapturePolicy(
+    name="feeding_window",
+    min_clip_seconds=FEEDING_WINDOW_MIN_CLIP_SECONDS,
+    max_clip_seconds=FEEDING_WINDOW_MAX_CLIP_SECONDS,
 )
 
 
@@ -159,6 +183,12 @@ def _detection_profile_for(now: float) -> DetectionProfile:
     if _is_feeding_window(now):
         return FEEDING_DETECTION_PROFILE
     return DEFAULT_DETECTION_PROFILE
+
+
+def _capture_policy_for(now: float) -> CapturePolicy:
+    if _is_feeding_window(now):
+        return FEEDING_CAPTURE_POLICY
+    return DEFAULT_CAPTURE_POLICY
 
 
 def _is_armed() -> bool:
@@ -280,6 +310,9 @@ def run() -> None:
     clip_upload_path: str | None = None
     capture_motion_score = 0.0
     capture_peak_motion_score = 0.0
+    capture_trace_points: list[MotionTracePoint] = []
+    recent_trace_points: deque[MotionTracePoint] = deque()
+    capture_started_in_feeding_window = False
     warmup_remaining = WARMUP_FRAMES
     consecutive_high_motion = 0
     rolling_brightness: float | None = None  # EMA of mean Y channel
@@ -293,6 +326,7 @@ def run() -> None:
     last_brightness_mode_switch = 0.0
     last_brightness_mode_switch_reset = 0.0
     active_detection_profile = DEFAULT_DETECTION_PROFILE
+    active_capture_policy = DEFAULT_CAPTURE_POLICY
 
     def flush_motion_summary(force: bool = False) -> None:
         nonlocal motion_summary_started, motion_summary
@@ -325,6 +359,43 @@ def run() -> None:
         while recent_brightness_samples and recent_brightness_samples[0][0] < cutoff:
             recent_brightness_samples.popleft()
 
+    def trim_recent_trace_points(now: float) -> None:
+        cutoff = now - TRACE_HISTORY_SECONDS
+        while recent_trace_points and recent_trace_points[0].timestamp < cutoff:
+            recent_trace_points.popleft()
+
+    def build_trace_point(
+        contours: list[np.ndarray],
+        motion_score: float,
+        coverage_fraction: float,
+        timestamp: float,
+    ) -> MotionTracePoint | None:
+        if motion_score <= 0:
+            return None
+
+        largest_contour = max(contours, key=cv2.contourArea, default=None)
+        if largest_contour is None:
+            return None
+
+        contour_area = cv2.contourArea(largest_contour)
+        if contour_area < TRACE_MIN_CONTOUR_AREA:
+            return None
+
+        moments = cv2.moments(largest_contour)
+        if moments["m00"] == 0:
+            return None
+
+        x = moments["m10"] / moments["m00"]
+        y = moments["m01"] / moments["m00"]
+        return MotionTracePoint(
+            timestamp=timestamp,
+            x=float(x),
+            y=float(y),
+            motion_score=float(motion_score),
+            coverage_fraction=float(coverage_fraction),
+            zone=zone_for_point(float(x), float(y)),
+        )
+
     def handle_signal(signum, frame):
         log.info("Signal %s received — stopping.", signum)
         picam2.stop_recording()
@@ -341,14 +412,19 @@ def run() -> None:
             if capturing:
                 elapsed = now - capture_start_time
                 idle = now - last_motion_during_capture
-                if elapsed >= MAX_CLIP_SECONDS or (
-                    elapsed >= MIN_CLIP_SECONDS and idle >= POST_MOTION_HOLD
+                if elapsed >= active_capture_policy.max_clip_seconds or (
+                    elapsed >= active_capture_policy.min_clip_seconds and idle >= POST_MOTION_HOLD
                 ):
                     circular.stop()
                     capturing = False
+                    classification = classify_event(
+                        capture_trace_points,
+                        feeding_window_active=capture_started_in_feeding_window,
+                        peak_motion_score=capture_peak_motion_score,
+                    )
                     log.info(
-                        "Clip saved (%.0fs total, %.0fs idle): %s",
-                        elapsed, idle, clip_upload_path,
+                        "Clip saved (%.0fs total, %.0fs idle, %s): %s",
+                        elapsed, idle, classification.event_type, clip_upload_path,
                     )
                     _log_remote_motion(
                         "capture_finished",
@@ -358,14 +434,18 @@ def run() -> None:
                         idleSeconds=round(idle, 1),
                         initialMotionScore=round(capture_motion_score, 1),
                         peakMotionScore=round(capture_peak_motion_score, 1),
+                        eventType=classification.event_type,
+                        summary=classification.summary,
+                        retentionCategory=classification.retention_category,
                     )
                     threading.Thread(
                         target=_upload_worker,
-                        args=(clip_upload_path, capture_motion_score),
+                        args=(clip_upload_path, capture_motion_score, classification.as_payload()),
                         daemon=True,
                     ).start()
                     clip_upload_path = None
                     capture_peak_motion_score = 0.0
+                    capture_trace_points = []
                     motion_cooldown = COOLDOWN_SECONDS
 
             lores = picam2.capture_array("lores")
@@ -385,6 +465,16 @@ def run() -> None:
                     profile=detection_profile.name,
                     motionThreshold=detection_profile.motion_threshold,
                     sustainedMotionFrames=detection_profile.sustained_motion_frames,
+                )
+
+            capture_policy = _capture_policy_for(now)
+            if capture_policy != active_capture_policy and not capturing:
+                active_capture_policy = capture_policy
+                log.info(
+                    "Capture policy → %s (min=%ds, max=%ds)",
+                    capture_policy.name,
+                    capture_policy.min_clip_seconds,
+                    capture_policy.max_clip_seconds,
                 )
 
             # ── Brightness-delta filter (catches lamp thermostat transitions) ──
@@ -504,6 +594,18 @@ def run() -> None:
                 float(motion_summary["maxMotionScore"]),
                 motion_score,
             )
+
+            trace_point = build_trace_point(
+                contours,
+                motion_score,
+                coverage_fraction,
+                now,
+            )
+            if trace_point is not None:
+                recent_trace_points.append(trace_point)
+                trim_recent_trace_points(now)
+                if capturing:
+                    capture_trace_points.append(trace_point)
 
             if warmup_remaining > 0:
                 warmup_remaining -= 1
@@ -674,11 +776,18 @@ def run() -> None:
                     clip_path,
                 )
                 consecutive_high_motion = 0
+                active_capture_policy = capture_policy
                 capture_start_time = now
                 last_motion_during_capture = now
                 clip_upload_path = str(clip_path)
                 capture_motion_score = motion_score
                 capture_peak_motion_score = motion_score
+                capture_started_in_feeding_window = _is_feeding_window(now)
+                capture_trace_points = [
+                    point
+                    for point in recent_trace_points
+                    if point.timestamp >= now - RING_BUFFER_SECONDS
+                ]
                 capturing = True
                 motion_summary["capturesStarted"] += 1
 
@@ -691,6 +800,9 @@ def run() -> None:
                     motionThreshold=detection_profile.motion_threshold,
                     consecutiveFrames=trigger_frames,
                     sustainedMotionFrames=detection_profile.sustained_motion_frames,
+                    capturePolicy=active_capture_policy.name,
+                    minClipSeconds=active_capture_policy.min_clip_seconds,
+                    maxClipSeconds=active_capture_policy.max_clip_seconds,
                     brightnessDelta=round(brightness_delta, 2),
                     coverageFraction=round(coverage_fraction, 4),
                 )
@@ -708,9 +820,13 @@ def run() -> None:
         log.info("Stopped.")
 
 
-def _upload_worker(clip_path: str, motion_score: float) -> None:
+def _upload_worker(
+    clip_path: str,
+    motion_score: float,
+    classification: dict[str, str | None],
+) -> None:
     try:
-        upload_event(clip_path, motion_score)
+        upload_event(clip_path, motion_score, classification)
     except Exception as exc:
         log.error("Upload failed for %s: %s", clip_path, exc)
         _log_remote_motion(
@@ -718,6 +834,7 @@ def _upload_worker(clip_path: str, motion_score: float) -> None:
             min_interval=0,
             clipPath=clip_path,
             motionScore=round(motion_score, 1),
+            eventType=classification.get("eventType"),
             error=str(exc),
         )
 

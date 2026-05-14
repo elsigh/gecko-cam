@@ -18,13 +18,13 @@ async function delay(ms: number) {
 }
 
 export async function eventMediaIsAvailable(
-  clipUrl: string,
+  clipUrl: string | null,
   thumbnailUrl: string,
   retries = 3
 ): Promise<boolean> {
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const [clipOk, thumbnailOk] = await Promise.all([
-      canReachUrl(clipUrl),
+      clipUrl ? canReachUrl(clipUrl) : Promise.resolve(true),
       canReachUrl(thumbnailUrl),
     ]);
 

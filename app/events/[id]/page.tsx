@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import EventVideoView from "@/components/EventVideoView";
+import { getEventSummary } from "@/lib/event-behavior";
 import { getCachedEvent, getCachedEventNavigation } from "@/lib/events-cache";
 import { validateUserAuthValues } from "@/lib/auth";
 import { formatEventTimestamp } from "@/lib/event-time";
@@ -20,20 +21,24 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
   const imageUrl = `${eventUrl}/opengraph-image`;
 
   const date = formatEventTimestamp(event.timestamp);
+  const summary = getEventSummary(event);
+  const description = summary
+    ? `${summary} at ${date}${event.motionScore ? ` · score ${Math.round(event.motionScore)}` : ""}`
+    : `Motion event captured at ${date}${event.motionScore ? ` · score ${Math.round(event.motionScore)}` : ""}`;
 
   return {
     title: `${date} — Gecko Cam`,
-    description: `Motion event captured at ${date}${event.motionScore ? ` · score ${Math.round(event.motionScore)}` : ""}`,
+    description,
     openGraph: {
       title: `${date} — Gecko Cam`,
-      description: `Motion event captured at ${date}${event.motionScore ? ` · score ${Math.round(event.motionScore)}` : ""}`,
+      description,
       url: eventUrl,
       images: [{ url: imageUrl, width: 1200, height: 630, alt: "Gecko Cam motion event" }],
     },
     twitter: {
       card: "summary_large_image",
       title: `${date} — Gecko Cam`,
-      description: `Motion event captured at ${date}${event.motionScore ? ` · score ${Math.round(event.motionScore)}` : ""}`,
+      description,
       images: [imageUrl],
     },
   };

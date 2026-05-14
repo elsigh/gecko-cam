@@ -7,6 +7,7 @@ All code and config needed to run the camera + motion capture on a Raspberry Pi.
 | File | Purpose |
 |------|--------|
 | `gecko_cam.py` | Main daemon: captures HLS stream + runs MOG2 motion detection, records clips on trigger |
+| `event_classifier.py` | Scene-specific behavior classifier: emergence, likely feeding, roaming, hide-entry |
 | `upload_event.py` | Uploads a clip + thumbnail to Vercel Blob and registers the event via API |
 | `gecko-cam.service` | systemd unit (installed by `setup.sh` under `/etc/systemd/system/`) |
 | `setup.sh` | One-time bootstrap: apt packages, nginx, env file, systemd service |
@@ -80,3 +81,19 @@ In `gecko_cam.py`:
 - `MAX_TRIGGER_BRIGHTNESS_RANGE` — blocks new captures while enclosure brightness is drifting across the recent window.
 - `LOCALIZED_DRIFT_OVERRIDE_*` — lets strong, localized motion still start a capture during mild brightness drift.
 - `COOLDOWN_SECONDS` — minimum time between captures.
+
+## Behavior labeling
+
+The Pi now tags each capture before upload using simple enclosure-specific ROIs:
+
+- `emergence` — MauMau appears to come out of a hide and move into the enclosure
+- `feeding_likely` — motion reaches the bowl, especially during the evening feeding window
+- `roaming` — general crawling around
+- `hide_entry_dry` / `hide_entry_rock` — movement ends in a hide
+
+Retention behavior:
+
+- `emergence` and `feeding_likely` keep the full clip + thumbnail
+- `roaming` and `hide_entry_*` upload only the thumbnail + summary metadata
+
+If the labels need tuning, adjust the ROI rectangles and heuristics in `event_classifier.py`.

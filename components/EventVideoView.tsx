@@ -1,6 +1,7 @@
 "use client";
 
 import { addTransitionType, startTransition, useEffect, useRef, useState, ViewTransition } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { deleteEventAction, setFavoriteEventAction } from "@/app/actions/events";
 import TransitionLink from "@/components/TransitionLink";
@@ -8,6 +9,12 @@ import {
   markEventDeletedOptimistically,
   rollbackOptimisticallyDeletedEvent,
 } from "@/lib/optimistic-event-deletions";
+import {
+  eventHasClip,
+  getEventAppearance,
+  getEventSummary,
+  getEventTypeLabel,
+} from "@/lib/event-behavior";
 import { formatEventCompactTime, formatEventTimestamp } from "@/lib/event-time";
 import { rotationStyle } from "@/lib/rotation";
 import type { GeckoEvent } from "@/lib/types";
@@ -54,6 +61,10 @@ export default function EventVideoView({
   const [mediaError, setMediaError] = useState(false);
   const mediaTransitionName = eventMediaTransitionName(event.id);
   const titleTransitionName = eventTitleTransitionName(event.id);
+  const hasClip = eventHasClip(event);
+  const eventAppearance = getEventAppearance(event.eventType);
+  const eventSummary = getEventSummary(event);
+  const eventTypeLabel = getEventTypeLabel(event.eventType);
 
   useEffect(() => {
     setFavorite(Boolean(event.favorite));
@@ -419,6 +430,11 @@ export default function EventVideoView({
                   Favorited
                 </p>
               )}
+              {eventAppearance && (
+                <p className={`mt-1 hidden rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] sm:inline-flex ${eventAppearance.badgeClassName}`}>
+                  {eventAppearance.label}
+                </p>
+              )}
             </div>
 
             {navigation?.older ? (
@@ -462,10 +478,41 @@ export default function EventVideoView({
                 </p>
               </div>
             </div>
+          ) : !hasClip ? (
+            <div className="flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(187,247,208,0.12),_transparent_35%),linear-gradient(135deg,_rgba(17,24,39,0.96),_rgba(3,7,18,0.98))]">
+              <div className="relative h-[65vh] w-full">
+                <Image
+                  src={event.thumbnailUrl}
+                  alt={eventSummary ?? "Gecko Cam event thumbnail"}
+                  fill
+                  className="object-contain"
+                  style={rotationStyle(event.rotation ?? 0)}
+                  sizes="100vw"
+                />
+              </div>
+              <div className="border-t border-white/10 bg-black/30 p-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  {eventAppearance && (
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] ${eventAppearance.badgeClassName}`}>
+                      {eventAppearance.label}
+                    </span>
+                  )}
+                  <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-gray-300">
+                    Thumbnail only
+                  </span>
+                </div>
+                <p className="mt-3 text-lg font-semibold text-white">
+                  {eventSummary ?? eventTypeLabel ?? "Motion event"}
+                </p>
+                <p className="mt-1 text-sm text-gray-400">
+                  Full clip was skipped for this event because it looked like routine enclosure activity rather than an emergence or feeding moment.
+                </p>
+              </div>
+            </div>
           ) : (
             <video
               ref={videoRef}
-              src={event.clipUrl}
+              src={event.clipUrl ?? undefined}
               poster={event.thumbnailUrl}
               className="max-w-full max-h-full object-contain transition-transform duration-300"
               style={rotationStyle(event.rotation ?? 0)}

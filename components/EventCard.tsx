@@ -10,6 +10,11 @@ import {
   rollbackOptimisticallyDeletedEvent,
   useOptimisticallyDeletedEventIds,
 } from "@/lib/optimistic-event-deletions";
+import {
+  eventHasClip,
+  getEventAppearance,
+  getEventSummary,
+} from "@/lib/event-behavior";
 import { rotationStyle } from "@/lib/rotation";
 import { formatEventTime, formatEventTimestamp } from "@/lib/event-time";
 import type { GeckoEvent } from "@/lib/types";
@@ -52,6 +57,9 @@ export default function EventCard({
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
   const mediaTransitionName = eventMediaTransitionName(event.id);
   const titleTransitionName = eventTitleTransitionName(event.id);
+  const eventAppearance = getEventAppearance(event.eventType);
+  const eventSummary = getEventSummary(event);
+  const hasClip = eventHasClip(event);
 
   useEffect(() => {
     setFavorite(Boolean(event.favorite));
@@ -176,7 +184,7 @@ export default function EventCard({
               )}
             </div>
           </div>
-        ) : (
+        ) : hasClip ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
             <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
               <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -184,6 +192,10 @@ export default function EventCard({
                 <path d="M8 5v14l11-7z" />
               </svg>
             </div>
+          </div>
+        ) : (
+          <div className="absolute inset-x-3 bottom-3 rounded-full bg-black/55 px-3 py-1 text-center text-[11px] font-medium uppercase tracking-[0.22em] text-white/85">
+            Summary only
           </div>
         )}
       </div>
@@ -213,7 +225,16 @@ export default function EventCard({
               {timestampLabel || formatEventTime(event.timestamp)}
             </div>
           </ViewTransition>
+          {eventAppearance && (
+            <span
+              className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] ${eventAppearance.badgeClassName}`}
+            >
+              {eventAppearance.label}
+            </span>
+          )}
           <p className="text-xs text-gray-400 mt-0.5">
+            {eventSummary && eventSummary !== eventAppearance?.label ? eventSummary : ""}
+            {eventSummary && event.duration ? " · " : ""}
             {event.duration ? formatDuration(event.duration) : ""}
             {event.duration && event.motionScore ? " · " : ""}
             {event.motionScore ? `score ${Math.round(event.motionScore)}` : ""}

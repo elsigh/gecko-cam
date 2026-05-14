@@ -153,13 +153,18 @@ def _get_duration(clip_path: str) -> float:
     return float(info.get("format", {}).get("duration", 0))
 
 
-def upload_event(clip_path: str, motion_score: float) -> None:
+def upload_event(
+    clip_path: str,
+    motion_score: float,
+    classification: dict[str, str | None] | None = None,
+) -> None:
     if not VERCEL_APP_URL:
         raise RuntimeError("VERCEL_APP_URL not set")
     if not API_SECRET:
         raise RuntimeError("API_SECRET not set")
 
     thumb_path: str | None = None
+    classification = classification or {}
     try:
         # CircularOutput writes raw H264 — wrap in MP4 container for browser playback
         log.info("Converting raw H264 → MP4 container: %s", clip_path)
@@ -169,12 +174,22 @@ def upload_event(clip_path: str, motion_score: float) -> None:
         timestamp = int(time.time() * 1000)  # Unix ms
         clip_name = Path(clip_path).name
 
-        log.info("[%s] Uploading clip: %s", event_id, clip_path)
-        clip_url = _upload_to_blob(clip_path, f"clips/{clip_name}", "video/mp4")
-        _wait_for_blob(clip_url, "clip")
-        log.info("[%s] Clip uploaded: %s", event_id, clip_url)
-
         duration = _get_duration(clip_path)
+        keep_video = classification.get("retentionCategory") == "keep_video"
+        clip_url: str | None = None
+
+        if keep_video:
+            log.info("[%s] Uploading clip: %s", event_id, clip_path)
+            clip_url = _upload_to_blob(clip_path, f"clips/{clip_name}", "video/mp4")
+            _wait_for_blob(clip_url, "clip")
+            log.info("[%s] Clip uploaded: %s", event_id, clip_url)
+        else:
+            log.info(
+                "[%s] Skipping clip upload for %s (%s)",
+                event_id,
+                clip_path,
+                classification.get("eventType", "summary_only"),
+            )
 
         thumb_path = _extract_thumbnail(clip_path, duration)
         thumb_name = Path(thumb_path).name
@@ -190,6 +205,7 @@ def upload_event(clip_path: str, motion_score: float) -> None:
             "thumbnailUrl": thumbnail_url,
             "duration": duration,
             "motionScore": motion_score,
+            **classification,
         }
 
         resp = requests.post(
