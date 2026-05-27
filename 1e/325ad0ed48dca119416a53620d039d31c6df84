@@ -1,0 +1,42 @@
+lib/events-cache.ts
+  s_3fd207e3239b7d::t_c317530342669f 37
+pi/README.md
+  s_3fd207e3239b7d::t_c362eb46ad39c7 76
+lib/kv.ts
+  s_3fd207e3239b7d::t_c80125bab96395 2,175-183,186-188,190-191
+lib/event-behavior.ts
+  s_3fd207e3239b7d::t_7296c514bfce80 43-46
+app/api/events/[id]/route.ts
+  s_3fd207e3239b7d::t_1c9026335c9aca 49
+app/events/all/page.tsx
+  s_3fd207e3239b7d::t_57cfd944ca762c 1-15
+app/events/page.tsx
+  s_3fd207e3239b7d::t_6291e13714b211 2,7-14
+app/actions/events.ts
+  s_3fd207e3239b7d::t_12c161372122d5 28
+pi/gecko_cam.py
+  s_3fd207e3239b7d::t_a1856427a6da91 13-15,76-79,175-181,184-195,201-209
+  s_3fd207e3239b7d::t_f3f827eb043dd7 361,442-467,473-481,501,653-661
+app/api/events/route.ts
+  s_3fd207e3239b7d::t_2266634dd8cb12 16,19,88,104,151
+components/EventsClient.tsx
+  s_3fd207e3239b7d::t_cae7024b21dc5e 27-29,42-44,78-81,91,254-272
+app/events/EventsList.tsx
+  s_3fd207e3239b7d::t_af182ead697c8e 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1e325ad0ed48dca119416a53620d039d31c6df84",
+  "prompts": {},
+  "sessions": {
+    "s_3fd207e3239b7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6ab7-a0c7-78f3-a3a1-2919503a20d3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>"
+    }
+  }
+}
