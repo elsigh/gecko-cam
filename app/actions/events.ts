@@ -25,6 +25,7 @@ type RotateResult = DeleteResult & {
 function revalidateEventPaths(ids: string[]) {
   revalidatePath("/");
   revalidatePath("/events");
+  revalidatePath("/events/all");
   for (const id of ids) revalidatePath(`/events/${id}`);
 }
 

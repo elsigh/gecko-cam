@@ -40,6 +40,10 @@ export function eventHasClip(event: GeckoEvent): boolean {
   return Boolean(event.clipUrl);
 }
 
+export function eventIsSummaryOnly(event: GeckoEvent): boolean {
+  return getEventRetentionCategory(event) === "summary_only";
+}
+
 export function getEventTypeLabel(eventType: GeckoEventType | undefined): string | null {
   if (!eventType) return null;
   return EVENT_APPEARANCE[eventType].label;

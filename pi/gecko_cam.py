@@ -10,6 +10,9 @@ On motion: flushes CircularOutput ring buffer (10s pre) then keeps recording
 while motion continues, up to MAX_CLIP_SECONDS. Clip ends after POST_MOTION_HOLD
 seconds of inactivity.
 
+Clip capture is disabled during the daytime schedule window, while the live HLS
+stream and background model keep running.
+
 Filters out heat-lamp thermostat false positives via two guards:
   1. Brightness-delta: skips any frame where mean Y channel deviates from
      its rolling EMA by >5 (0-255 scale) — catches lamp on/off transitions.
@@ -70,6 +73,10 @@ FEEDING_WINDOW_END_HOUR = 21
 FEEDING_WINDOW_END_MINUTE = 20
 FEEDING_WINDOW_MOTION_THRESHOLD = 1400
 FEEDING_WINDOW_SUSTAINED_MOTION_FRAMES = 2
+CLIP_RECORDING_DISABLED_START_HOUR = 4
+CLIP_RECORDING_DISABLED_START_MINUTE = 0
+CLIP_RECORDING_DISABLED_END_HOUR = 20
+CLIP_RECORDING_DISABLED_END_MINUTE = 0
 # If total motion pixels exceed this fraction of the frame it's almost certainly
 # a global lighting change (lamp on/off), not the gecko.
 MAX_COVERAGE_FRACTION = 0.12  # reject frame if >12% of pixels are "motion"
@@ -165,18 +172,42 @@ def _minutes_since_midnight(hour: int, minute: int) -> int:
     return hour * 60 + minute
 
 
-def _is_feeding_window(now: float) -> bool:
+def _is_local_time_window(
+    now: float,
+    start_hour: int,
+    start_minute: int,
+    end_hour: int,
+    end_minute: int,
+) -> bool:
     local = time.localtime(now)
     current = _minutes_since_midnight(local.tm_hour, local.tm_min)
-    start = _minutes_since_midnight(
+    start = _minutes_since_midnight(start_hour, start_minute)
+    end = _minutes_since_midnight(end_hour, end_minute)
+    if start < end:
+        return start <= current < end
+    if start > end:
+        return current >= start or current < end
+    return False
+
+
+def _is_feeding_window(now: float) -> bool:
+    return _is_local_time_window(
+        now,
         FEEDING_WINDOW_START_HOUR,
         FEEDING_WINDOW_START_MINUTE,
-    )
-    end = _minutes_since_midnight(
         FEEDING_WINDOW_END_HOUR,
         FEEDING_WINDOW_END_MINUTE,
     )
-    return start <= current < end
+
+
+def _clip_recording_disabled(now: float) -> bool:
+    return _is_local_time_window(
+        now,
+        CLIP_RECORDING_DISABLED_START_HOUR,
+        CLIP_RECORDING_DISABLED_START_MINUTE,
+        CLIP_RECORDING_DISABLED_END_HOUR,
+        CLIP_RECORDING_DISABLED_END_MINUTE,
+    )
 
 
 def _detection_profile_for(now: float) -> DetectionProfile:
@@ -327,6 +358,7 @@ def run() -> None:
     last_brightness_mode_switch_reset = 0.0
     active_detection_profile = DEFAULT_DETECTION_PROFILE
     active_capture_policy = DEFAULT_CAPTURE_POLICY
+    active_clip_recording_enabled: bool | None = None
 
     def flush_motion_summary(force: bool = False) -> None:
         nonlocal motion_summary_started, motion_summary
@@ -407,14 +439,46 @@ def run() -> None:
     try:
         while True:
             now = time.time()
+            clip_recording_enabled = not _clip_recording_disabled(now)
+            if clip_recording_enabled != active_clip_recording_enabled:
+                active_clip_recording_enabled = clip_recording_enabled
+                disabled_start = (
+                    f"{CLIP_RECORDING_DISABLED_START_HOUR:02d}:"
+                    f"{CLIP_RECORDING_DISABLED_START_MINUTE:02d}"
+                )
+                disabled_end = (
+                    f"{CLIP_RECORDING_DISABLED_END_HOUR:02d}:"
+                    f"{CLIP_RECORDING_DISABLED_END_MINUTE:02d}"
+                )
+                if clip_recording_enabled:
+                    log.info("Clip recording enabled by schedule.")
+                else:
+                    log.info(
+                        "Clip recording disabled by schedule (%s-%s local time).",
+                        disabled_start,
+                        disabled_end,
+                    )
+                _log_remote_motion(
+                    "clip_recording_schedule_changed",
+                    min_interval=0,
+                    enabled=clip_recording_enabled,
+                    disabledStart=disabled_start,
+                    disabledEnd=disabled_end,
+                )
 
             # ── End active capture if idle or at max duration ──────────────────
             if capturing:
                 elapsed = now - capture_start_time
                 idle = now - last_motion_during_capture
-                if elapsed >= active_capture_policy.max_clip_seconds or (
-                    elapsed >= active_capture_policy.min_clip_seconds and idle >= POST_MOTION_HOLD
-                ):
+                finish_reason: str | None = None
+                if not clip_recording_enabled:
+                    finish_reason = "schedule_disabled"
+                elif elapsed >= active_capture_policy.max_clip_seconds:
+                    finish_reason = "duration_limit"
+                elif elapsed >= active_capture_policy.min_clip_seconds and idle >= POST_MOTION_HOLD:
+                    finish_reason = "idle"
+
+                if finish_reason is not None:
                     circular.stop()
                     capturing = False
                     classification = classify_event(
@@ -434,6 +498,7 @@ def run() -> None:
                         idleSeconds=round(idle, 1),
                         initialMotionScore=round(capture_motion_score, 1),
                         peakMotionScore=round(capture_peak_motion_score, 1),
+                        finishReason=finish_reason,
                         eventType=classification.event_type,
                         summary=classification.summary,
                         retentionCategory=classification.retention_category,
@@ -584,6 +649,16 @@ def run() -> None:
             last_frame_passed_filters = now  # frame cleared all filters
             trim_recent_events(recent_brightness_block_times, now)
             trim_recent_events(recent_coverage_block_times, now)
+
+            if not clip_recording_enabled and not capturing:
+                if warmup_remaining > 0:
+                    warmup_remaining -= 1
+                trim_recent_trace_points(now)
+                consecutive_high_motion = 0
+                motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
+                flush_motion_summary()
+                time.sleep(POLL_INTERVAL)
+                continue
 
             contours, _ = cv2.findContours(
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE

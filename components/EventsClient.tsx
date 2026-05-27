@@ -24,6 +24,9 @@ interface Props {
   emptyBody?: string;
   backHref?: string;
   backLabel?: string;
+  includeSummaryEvents?: boolean;
+  summaryToggleHref?: string;
+  summaryToggleLabel?: string;
 }
 
 export default function EventsClient({
@@ -36,6 +39,9 @@ export default function EventsClient({
   emptyBody = "Events appear automatically when motion is detected.",
   backHref = "/",
   backLabel = "← Live",
+  includeSummaryEvents = true,
+  summaryToggleHref,
+  summaryToggleLabel,
 }: Props) {
   const router = useRouter();
   const [events, setEvents] = useState<GeckoEvent[]>(initialEvents);
@@ -69,7 +75,10 @@ export default function EventsClient({
     if (loading || !cursor) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/events?cursor=${encodeURIComponent(cursor)}`);
+      const params = new URLSearchParams({ cursor });
+      if (includeSummaryEvents) params.set("includeSummaries", "1");
+
+      const res = await fetch(`/api/events?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data: EventListResponse = await res.json();
       setEvents((prev) => [...prev, ...data.events]);
@@ -79,7 +88,7 @@ export default function EventsClient({
     } finally {
       setLoading(false);
     }
-  }, [loading, cursor]);
+  }, [loading, cursor, includeSummaryEvents]);
 
   useEffect(() => {
     const deletedIds = new Set(
@@ -242,14 +251,25 @@ export default function EventsClient({
               {backLabel}
             </TransitionLink>
             <h2 className="text-lg font-semibold">{title}</h2>
-            {visibleEvents.length > 0 && canManage && (
-              <button
-                onClick={() => setSelectMode(true)}
-                className="ml-auto text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                Select
-              </button>
-            )}
+            <div className="ml-auto flex items-center gap-3">
+              {summaryToggleHref && summaryToggleLabel && (
+                <TransitionLink
+                  href={summaryToggleHref}
+                  transitionTypes={[NAVIGATION_TRANSITION]}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  {summaryToggleLabel}
+                </TransitionLink>
+              )}
+              {visibleEvents.length > 0 && canManage && (
+                <button
+                  onClick={() => setSelectMode(true)}
+                  className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+                >
+                  Select
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>

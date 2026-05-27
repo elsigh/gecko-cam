@@ -34,7 +34,7 @@ export async function getCachedEventsPage(cursor?: string) {
   cacheLife("seconds");
   cacheTag(EVENTS_LIST_TAG);
 
-  return listEvents(cursor);
+  return listEvents({ cursor });
 }
 
 export async function getCachedEvent(id: string) {

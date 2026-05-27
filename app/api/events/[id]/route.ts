@@ -46,6 +46,7 @@ export async function DELETE(
     revalidateTag(getEventTag(id), "default");
     revalidatePath("/");
     revalidatePath("/events");
+    revalidatePath("/events/all");
     revalidatePath(`/events/${id}`);
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -1,4 +1,5 @@
 import { put } from "@vercel/blob";
+import { eventIsSummaryOnly } from "./event-behavior";
 import type { GeckoEvent, Rotation } from "./types";
 
 const MAX_RECENT_NON_FAVORITES = 200;
@@ -171,14 +172,23 @@ export async function setEventFavorite(
   return { ...event, favorite };
 }
 
-export async function listEvents(
-  cursor?: string
-): Promise<{ events: GeckoEvent[]; nextCursor: string | null }> {
+type ListEventsOptions = {
+  cursor?: string;
+  includeSummaryEvents?: boolean;
+};
+
+export async function listEvents({
+  cursor,
+  includeSummaryEvents = true,
+}: ListEventsOptions = {}): Promise<{ events: GeckoEvent[]; nextCursor: string | null }> {
   const [storedEvents, favoriteIds] = await Promise.all([readEvents(), readFavoriteIds()]);
   const allEvents = applyFavorites(storedEvents, favoriteIds);
+  const visibleEvents = includeSummaryEvents
+    ? allEvents
+    : allEvents.filter((event) => !eventIsSummaryOnly(event));
   const offset = cursor ? parseInt(cursor, 10) : 0;
-  const page = allEvents.slice(offset, offset + PAGE_SIZE);
-  const hasMore = offset + PAGE_SIZE < allEvents.length;
+  const page = visibleEvents.slice(offset, offset + PAGE_SIZE);
+  const hasMore = offset + PAGE_SIZE < visibleEvents.length;
   return {
     events: page,
     nextCursor: hasMore ? String(offset + PAGE_SIZE) : null,

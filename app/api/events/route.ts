@@ -13,9 +13,10 @@ import type { GeckoEvent } from "@/lib/types";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const cursor = searchParams.get("cursor") ?? undefined;
+  const includeSummaryEvents = searchParams.get("includeSummaries") === "1";
 
   try {
-    const result = await listEvents(cursor);
+    const result = await listEvents({ cursor, includeSummaryEvents });
     return NextResponse.json(result);
   } catch (err) {
     console.error("GET /api/events error:", err);
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
     revalidateTag(getEventTag(id), "default");
     revalidatePath("/");
     revalidatePath("/events");
+    revalidatePath("/events/all");
     revalidatePath(`/events/${id}`);
     // events.json is blob-backed and can lag briefly across reads; wait until the
     // event is readable through the same path metadata/OG rendering uses before
@@ -99,6 +101,7 @@ export async function POST(request: NextRequest) {
       revalidateTag(getEventTag(id), "default");
       revalidatePath("/");
       revalidatePath("/events");
+      revalidatePath("/events/all");
       revalidatePath(`/events/${id}`);
 
       try {
@@ -145,6 +148,7 @@ export async function DELETE(request: NextRequest) {
     for (const id of ids) revalidateTag(getEventTag(id), "default");
     revalidatePath("/");
     revalidatePath("/events");
+    revalidatePath("/events/all");
     for (const id of ids) revalidatePath(`/events/${id}`);
     return NextResponse.json({ ok: true, deleted: removed.length });
   } catch (err) {
