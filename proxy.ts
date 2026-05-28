@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AUTH_REALM = "Gecko Cam";
-const PUBLIC_PATHS = ["/favicon", "/icon"];
+const PUBLIC_PATHS = ["/favicon", "/icon", "/login", "/api/login"];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
@@ -36,18 +35,16 @@ function getBasicAuthPassword(authorization: string | null): string | null {
 }
 
 function unauthorized(request: NextRequest) {
-  const headers = new Headers({
-    "WWW-Authenticate": `Basic realm="${AUTH_REALM}", charset="UTF-8"`,
-  });
-
   if (request.nextUrl.pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers,
-  });
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set(
+    "from",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`
+  );
+  return NextResponse.redirect(loginUrl);
 }
 
 export async function proxy(request: NextRequest) {
