@@ -1,0 +1,31 @@
+lib/auth.ts
+  s_3fd207e3239b7d::t_91b1b45a759e4f 38-39,43
+app/events/[id]/page.tsx
+  s_3fd207e3239b7d::t_46022125a13454 4,53-54
+app/login/page.tsx
+  s_3fd207e3239b7d::t_10430a601a0f16 2,8-9
+app/favorites/page.tsx
+  s_3fd207e3239b7d::t_d1bb98bb17d56b 2,8,10
+proxy.ts
+  s_3fd207e3239b7d::t_4e85bc2e02d23a 53
+app/events/EventsList.tsx
+  s_3fd207e3239b7d::t_959c960e25c558 1,23,25
+app/actions/events.ts
+  s_3fd207e3239b7d::t_a48db45c41fd3d 3,38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bc5be38074266477e43e47e0922d40cb8b147dd3",
+  "prompts": {},
+  "sessions": {
+    "s_3fd207e3239b7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6ab7-a0c7-78f3-a3a1-2919503a20d3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>"
+    }
+  }
+}
