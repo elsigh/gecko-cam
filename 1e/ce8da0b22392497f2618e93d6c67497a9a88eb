@@ -1,0 +1,21 @@
+proxy.ts
+  s_3fd207e3239b7d::t_360d048a78630b 3,39,42-47
+app/login/page.tsx
+  s_3fd207e3239b7d::t_28c5f1d326aba3 1-2,4-26,29-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1ece8da0b22392497f2618e93d6c67497a9a88eb",
+  "prompts": {},
+  "sessions": {
+    "s_3fd207e3239b7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e6ab7-a0c7-78f3-a3a1-2919503a20d3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>"
+    }
+  }
+}
