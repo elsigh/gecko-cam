@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import EventsClient from "@/components/EventsClient";
 import { validateUserAuthValues } from "@/lib/auth";
 import { listEvents } from "@/lib/kv";
@@ -20,12 +20,9 @@ export default async function EventsList({
   summaryToggleHref,
   summaryToggleLabel,
 }: EventsListProps) {
-  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
+  const cookieStore = await cookies();
   const { events, nextCursor } = await listEvents({ includeSummaryEvents });
-  const canManage = validateUserAuthValues(
-    cookieStore.get("gecko_session")?.value,
-    headerStore.get("authorization")
-  );
+  const canManage = validateUserAuthValues(cookieStore.get("gecko_session")?.value);
 
   return (
     <EventsClient

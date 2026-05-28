@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import EventVideoView from "@/components/EventVideoView";
 import { getEventSummary } from "@/lib/event-behavior";
 import { getCachedEvent, getCachedEventNavigation } from "@/lib/events-cache";
@@ -50,11 +50,8 @@ async function EventDetail({ params }: EventPageProps) {
     getCachedEvent(id),
     getCachedEventNavigation(id),
   ]);
-  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
-  const canDelete = validateUserAuthValues(
-    cookieStore.get("gecko_session")?.value,
-    headerStore.get("authorization")
-  );
+  const cookieStore = await cookies();
+  const canDelete = validateUserAuthValues(cookieStore.get("gecko_session")?.value);
   if (!event) notFound();
   return (
     <EventVideoView

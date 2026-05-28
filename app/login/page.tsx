@@ -1,15 +1,12 @@
 import { Suspense } from "react";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import LoginForm from "./LoginForm";
 import { validateUserAuthValues } from "@/lib/auth";
 
 async function LoginGate() {
-  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
-  const isAuthenticated = validateUserAuthValues(
-    cookieStore.get("gecko_session")?.value,
-    headerStore.get("authorization")
-  );
+  const cookieStore = await cookies();
+  const isAuthenticated = validateUserAuthValues(cookieStore.get("gecko_session")?.value);
 
   if (isAuthenticated) {
     redirect("/");

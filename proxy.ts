@@ -21,19 +21,6 @@ async function makeToken(password: string, secret: string): Promise<string> {
     .join("");
 }
 
-function getBasicAuthPassword(authorization: string | null): string | null {
-  if (!authorization?.startsWith("Basic ")) return null;
-
-  try {
-    const decoded = atob(authorization.slice(6));
-    const separator = decoded.indexOf(":");
-    if (separator === -1) return null;
-    return decoded.slice(separator + 1);
-  } catch {
-    return null;
-  }
-}
-
 function unauthorized(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -62,9 +49,8 @@ export async function proxy(request: NextRequest) {
 
   const expectedToken = secret ? await makeToken(sitePassword, secret) : null;
   const cookieToken = request.cookies.get("gecko_session")?.value;
-  const basicPassword = getBasicAuthPassword(request.headers.get("authorization"));
 
-  if ((expectedToken && cookieToken === expectedToken) || basicPassword === sitePassword) {
+  if (expectedToken && cookieToken === expectedToken) {
     return NextResponse.next();
   }
 
