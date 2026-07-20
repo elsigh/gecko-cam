@@ -2,11 +2,17 @@
 
 import { cookies } from "next/headers";
 import { refresh, revalidatePath, updateTag } from "next/cache";
-import { deleteEvent, deleteEvents, setEventFavorite, setEventRotation } from "@/lib/kv";
+import {
+  deleteEvent,
+  deleteEvents,
+  reviewEvent,
+  setEventFavorite,
+  setEventRotation,
+} from "@/lib/kv";
 import { deleteEventBlobs } from "@/lib/blob";
 import { validateUserAuthValues } from "@/lib/auth";
 import { EVENTS_LIST_TAG, getEventTag } from "@/lib/events-cache";
-import type { GeckoEvent, Rotation } from "@/lib/types";
+import type { GeckoEvent, GeckoEventReviewVerdict, Rotation } from "@/lib/types";
 
 type DeleteResult = {
   ok: boolean;
@@ -20,6 +26,10 @@ type BatchDeleteResult = DeleteResult & {
 
 type RotateResult = DeleteResult & {
   event?: GeckoEvent;
+};
+
+type ReviewResult = RotateResult & {
+  deleted?: boolean;
 };
 
 function revalidateEventPaths(ids: string[]) {
@@ -152,5 +162,41 @@ export async function setFavoriteEventAction(
   } catch (err) {
     console.error(`setFavoriteEventAction(${id}) error:`, String(err));
     return { ok: false, error: "Failed to update favorite", status: 500 };
+  }
+}
+
+export async function reviewEventAction(
+  id: string,
+  verdict: GeckoEventReviewVerdict
+): Promise<ReviewResult> {
+  if (!id) return { ok: false, error: "Event id required", status: 400 };
+  if (verdict !== "useful" && verdict !== "not_useful") {
+    return { ok: false, error: "Invalid review", status: 400 };
+  }
+  if (!(await hasValidSession())) {
+    return { ok: false, error: "Unauthorized", status: 401 };
+  }
+
+  try {
+    const result = await reviewEvent(id, verdict);
+    if (!result) {
+      return { ok: false, error: "Event not found", status: 404 };
+    }
+
+    if (result.deleted) {
+      await deleteEventBlobs(result.event.clipUrl, result.event.thumbnailUrl).catch((err) =>
+        console.error(`deleteEventBlobs error for reviewed event ${id}:`, String(err))
+      );
+    }
+
+    updateEventTags([id]);
+    revalidateEventPaths([id]);
+    revalidatePath("/favorites");
+    refresh();
+
+    return { ok: true, event: result.event, deleted: result.deleted };
+  } catch (err) {
+    console.error(`reviewEventAction(${id}, ${verdict}) error:`, String(err));
+    return { ok: false, error: "Failed to save review", status: 500 };
   }
 }

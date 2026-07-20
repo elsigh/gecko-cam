@@ -73,7 +73,7 @@ def classify_event(
           summary="Motion detected",
           source_zone=None,
           target_zone=None,
-          retention_category=REVIEW,
+          retention_category=_retention_category(REVIEW, feeding_window_active),
       )
 
     first_zone = points[0].zone
@@ -127,7 +127,7 @@ def classify_event(
             summary="Entered dry hide",
             source_zone=first_zone,
             target_zone="dry_hide",
-            retention_category=SUMMARY_ONLY,
+            retention_category=_retention_category(SUMMARY_ONLY, feeding_window_active),
         )
 
     if (
@@ -141,7 +141,7 @@ def classify_event(
             summary="Entered rock hide",
             source_zone=first_zone,
             target_zone="rock_hide",
-            retention_category=SUMMARY_ONLY,
+            retention_category=_retention_category(SUMMARY_ONLY, feeding_window_active),
         )
 
     if distance_travelled >= 45 or len(points) >= 5:
@@ -150,7 +150,7 @@ def classify_event(
             summary="Crawling around enclosure",
             source_zone=first_zone,
             target_zone=last_zone,
-            retention_category=SUMMARY_ONLY,
+            retention_category=_retention_category(SUMMARY_ONLY, feeding_window_active),
         )
 
     return EventClassification(
@@ -158,8 +158,13 @@ def classify_event(
         summary="Motion detected",
         source_zone=first_zone,
         target_zone=last_zone,
-        retention_category=REVIEW,
+        retention_category=_retention_category(REVIEW, feeding_window_active),
     )
+
+
+def _retention_category(default: str, feeding_window_active: bool) -> str:
+    """Keep every feeding-window clip while capture tuning is in calibration."""
+    return KEEP_VIDEO if feeding_window_active else default
 
 
 def _dominant_zone(points: list[MotionTracePoint]) -> str:

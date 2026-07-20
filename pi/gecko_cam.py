@@ -6,19 +6,20 @@ Runs picamera2 with dual outputs:
   - main (1280x720) → FFmpeg → HLS segments in /tmp/hls/
   - lores (320x240, YUV420) → OpenCV MOG2 motion detection
 
-On motion: flushes CircularOutput ring buffer (10s pre) then keeps recording
+On motion: flushes CircularOutput ring buffer (30s pre) then keeps recording
 while motion continues, up to MAX_CLIP_SECONDS. Clip ends after POST_MOTION_HOLD
 seconds of inactivity.
 
-Clip capture is disabled during the daytime schedule window, while the live HLS
-stream and background model keep running.
+Clip capture is focused on the 20:00-23:00 Pacific feeding window. The live HLS
+stream remains available all day, while motion analysis only starts shortly
+before the feeding window so the background model is ready at 20:00.
 
 Filters out heat-lamp thermostat false positives via two guards:
   1. Brightness-delta: skips any frame where mean Y channel deviates from
      its rolling EMA by >5 (0-255 scale) — catches lamp on/off transitions.
   2. Coverage fraction: skips any frame where >12% of pixels are flagged as
      foreground — a global light change hits the whole frame; gecko movement is local.
-  Requires sustained motion for 5 consecutive frames (~0.17s) before triggering.
+  Requires sustained motion before triggering.
 """
 
 import logging
@@ -41,6 +42,7 @@ from picamera2.encoders import H264Encoder
 from picamera2.outputs import CircularOutput, FfmpegOutput
 
 import requests
+from capture_schedule import is_pacific_time_window
 from event_classifier import MotionTracePoint, classify_event, zone_for_point
 from upload_event import upload_event
 
@@ -55,25 +57,27 @@ WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detectio
 POST_MOTION_HOLD = 8         # restore the earlier tail length after motion stops
 MIN_CLIP_SECONDS = 30        # don't end a capture early just because motion paused briefly
 MAX_CLIP_SECONDS = 45        # still bounded, but lets interesting events run past 30s
-RING_BUFFER_SECONDS = 15     # seconds of pre-motion buffer
+RING_BUFFER_SECONDS = 30     # seconds of pre-motion buffer
 FPS = 30
 KEYFRAME_INTERVAL_FRAMES = 15  # 0.5s GOP so CircularOutput pre-roll starts close to the trigger
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 CAMERA_ROTATION = 180        # upright source feed so browser/native controls stay upright
-TRACE_HISTORY_SECONDS = 20   # matches the pre-roll window we use for behavior labeling
+TRACE_HISTORY_SECONDS = 30   # matches the pre-roll window we use for behavior labeling
 TRACE_MIN_CONTOUR_AREA = 80
-FEEDING_WINDOW_MIN_CLIP_SECONDS = 40
-FEEDING_WINDOW_MAX_CLIP_SECONDS = 60
+FEEDING_WINDOW_MIN_CLIP_SECONDS = 45
+FEEDING_WINDOW_MAX_CLIP_SECONDS = 120
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
 SUSTAINED_MOTION_FRAMES = 4   # require motion for N consecutive frames (~0.13s)
 FEEDING_WINDOW_START_HOUR = 20
-FEEDING_WINDOW_START_MINUTE = 50
-FEEDING_WINDOW_END_HOUR = 21
-FEEDING_WINDOW_END_MINUTE = 20
+FEEDING_WINDOW_START_MINUTE = 0
+FEEDING_WINDOW_END_HOUR = 23
+FEEDING_WINDOW_END_MINUTE = 0
 FEEDING_WINDOW_MOTION_THRESHOLD = 1400
 FEEDING_WINDOW_SUSTAINED_MOTION_FRAMES = 2
-CLIP_RECORDING_DISABLED_START_HOUR = 4
+ANALYSIS_WARMUP_START_HOUR = 19
+ANALYSIS_WARMUP_START_MINUTE = 55
+CLIP_RECORDING_DISABLED_START_HOUR = 23
 CLIP_RECORDING_DISABLED_START_MINUTE = 0
 CLIP_RECORDING_DISABLED_END_HOUR = 20
 CLIP_RECORDING_DISABLED_END_MINUTE = 0
@@ -168,30 +172,8 @@ FEEDING_CAPTURE_POLICY = CapturePolicy(
 )
 
 
-def _minutes_since_midnight(hour: int, minute: int) -> int:
-    return hour * 60 + minute
-
-
-def _is_local_time_window(
-    now: float,
-    start_hour: int,
-    start_minute: int,
-    end_hour: int,
-    end_minute: int,
-) -> bool:
-    local = time.localtime(now)
-    current = _minutes_since_midnight(local.tm_hour, local.tm_min)
-    start = _minutes_since_midnight(start_hour, start_minute)
-    end = _minutes_since_midnight(end_hour, end_minute)
-    if start < end:
-        return start <= current < end
-    if start > end:
-        return current >= start or current < end
-    return False
-
-
 def _is_feeding_window(now: float) -> bool:
-    return _is_local_time_window(
+    return is_pacific_time_window(
         now,
         FEEDING_WINDOW_START_HOUR,
         FEEDING_WINDOW_START_MINUTE,
@@ -201,12 +183,22 @@ def _is_feeding_window(now: float) -> bool:
 
 
 def _clip_recording_disabled(now: float) -> bool:
-    return _is_local_time_window(
+    return is_pacific_time_window(
         now,
         CLIP_RECORDING_DISABLED_START_HOUR,
         CLIP_RECORDING_DISABLED_START_MINUTE,
         CLIP_RECORDING_DISABLED_END_HOUR,
         CLIP_RECORDING_DISABLED_END_MINUTE,
+    )
+
+
+def _motion_analysis_active(now: float) -> bool:
+    return is_pacific_time_window(
+        now,
+        ANALYSIS_WARMUP_START_HOUR,
+        ANALYSIS_WARMUP_START_MINUTE,
+        FEEDING_WINDOW_END_HOUR,
+        FEEDING_WINDOW_END_MINUTE,
     )
 
 
@@ -359,6 +351,7 @@ def run() -> None:
     active_detection_profile = DEFAULT_DETECTION_PROFILE
     active_capture_policy = DEFAULT_CAPTURE_POLICY
     active_clip_recording_enabled: bool | None = None
+    active_motion_analysis_enabled: bool | None = None
 
     def flush_motion_summary(force: bool = False) -> None:
         nonlocal motion_summary_started, motion_summary
@@ -439,6 +432,19 @@ def run() -> None:
     try:
         while True:
             now = time.time()
+            motion_analysis_enabled = _motion_analysis_active(now)
+            if motion_analysis_enabled != active_motion_analysis_enabled:
+                active_motion_analysis_enabled = motion_analysis_enabled
+                if motion_analysis_enabled:
+                    log.info("Motion analysis enabled for feeding-window warmup.")
+                else:
+                    log.info("Motion analysis paused outside the feeding window.")
+                _log_remote_motion(
+                    "motion_analysis_schedule_changed",
+                    min_interval=0,
+                    enabled=motion_analysis_enabled,
+                )
+
             clip_recording_enabled = not _clip_recording_disabled(now)
             if clip_recording_enabled != active_clip_recording_enabled:
                 active_clip_recording_enabled = clip_recording_enabled
@@ -454,7 +460,7 @@ def run() -> None:
                     log.info("Clip recording enabled by schedule.")
                 else:
                     log.info(
-                        "Clip recording disabled by schedule (%s-%s local time).",
+                        "Clip recording disabled by schedule (%s-%s Pacific time).",
                         disabled_start,
                         disabled_end,
                     )
@@ -512,6 +518,13 @@ def run() -> None:
                     capture_peak_motion_score = 0.0
                     capture_trace_points = []
                     motion_cooldown = COOLDOWN_SECONDS
+
+            if not motion_analysis_enabled and not capturing:
+                consecutive_high_motion = 0
+                motion_cooldown = max(0.0, motion_cooldown - 1.0)
+                flush_motion_summary()
+                time.sleep(1.0)
+                continue
 
             lores = picam2.capture_array("lores")
             motion_summary["frames"] += 1

@@ -1,12 +1,27 @@
 import { put } from "@vercel/blob";
 import { eventIsSummaryOnly } from "./event-behavior";
-import type { GeckoEvent, Rotation } from "./types";
+import type { GeckoEvent, GeckoEventReviewVerdict, Rotation } from "./types";
 
 const MAX_RECENT_NON_FAVORITES = 200;
 const PAGE_SIZE = 12;
 const BLOB_PREFIX = "gecko-cam-data";
 const ROTATION_FILENAME = "rotation-v3.json";
 const FAVORITES_FILENAME = "favorites.json";
+const REVIEWS_FILENAME = "capture-reviews.json";
+const MAX_CAPTURE_REVIEWS = 2000;
+
+type CaptureReview = {
+  eventId: string;
+  verdict: GeckoEventReviewVerdict;
+  reviewedAt: number;
+  capturedAt: number;
+  duration: number;
+  motionScore: number;
+  eventType?: GeckoEvent["eventType"];
+  sourceZone?: GeckoEvent["sourceZone"];
+  targetZone?: GeckoEvent["targetZone"];
+  retentionCategory?: GeckoEvent["retentionCategory"];
+};
 
 function getBaseUrl(): string {
   const token = process.env.BLOB_READ_WRITE_TOKEN ?? "";
@@ -170,6 +185,57 @@ export async function setEventFavorite(
     writeFavoriteIds(favoriteIds),
   ]);
   return { ...event, favorite };
+}
+
+export async function reviewEvent(
+  id: string,
+  verdict: GeckoEventReviewVerdict
+): Promise<{ event: GeckoEvent; deleted: boolean } | null> {
+  const [events, favoriteIds, storedReviews] = await Promise.all([
+    readEvents(),
+    readFavoriteIds(),
+    readBlob<CaptureReview[]>(REVIEWS_FILENAME),
+  ]);
+  const event = events.find((current) => current.id === id);
+  if (!event) return null;
+
+  const reviewedAt = Date.now();
+  const review: CaptureReview = {
+    eventId: id,
+    verdict,
+    reviewedAt,
+    capturedAt: event.timestamp,
+    duration: event.duration,
+    motionScore: event.motionScore,
+    eventType: event.eventType,
+    sourceZone: event.sourceZone,
+    targetZone: event.targetZone,
+    retentionCategory: event.retentionCategory,
+  };
+  const reviews = [
+    review,
+    ...(storedReviews ?? []).filter((current) => current.eventId !== id),
+  ].slice(0, MAX_CAPTURE_REVIEWS);
+
+  if (verdict === "not_useful") {
+    favoriteIds.delete(id);
+    await Promise.all([
+      writeBlob("events.json", events.filter((current) => current.id !== id)),
+      writeFavoriteIds(favoriteIds),
+      writeBlob(REVIEWS_FILENAME, reviews),
+    ]);
+    return { event, deleted: true };
+  }
+
+  const updated = { ...event, reviewVerdict: "useful" as const, reviewedAt };
+  await Promise.all([
+    writeBlob(
+      "events.json",
+      events.map((current) => current.id === id ? updated : current)
+    ),
+    writeBlob(REVIEWS_FILENAME, reviews),
+  ]);
+  return { event: updated, deleted: false };
 }
 
 type ListEventsOptions = {

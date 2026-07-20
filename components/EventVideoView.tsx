@@ -3,7 +3,11 @@
 import { addTransitionType, startTransition, useEffect, useRef, useState, ViewTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { deleteEventAction, setFavoriteEventAction } from "@/app/actions/events";
+import {
+  deleteEventAction,
+  reviewEventAction,
+  setFavoriteEventAction,
+} from "@/app/actions/events";
 import TransitionLink from "@/components/TransitionLink";
 import {
   markEventDeletedOptimistically,
@@ -58,6 +62,8 @@ export default function EventVideoView({
   const [deleting, setDeleting] = useState(false);
   const [favorite, setFavorite] = useState(Boolean(event.favorite));
   const [favoriting, setFavoriting] = useState(false);
+  const [reviewedUseful, setReviewedUseful] = useState(event.reviewVerdict === "useful");
+  const [reviewing, setReviewing] = useState<"useful" | "not_useful" | null>(null);
   const [mediaError, setMediaError] = useState(false);
   const mediaTransitionName = eventMediaTransitionName(event.id);
   const titleTransitionName = eventTitleTransitionName(event.id);
@@ -69,8 +75,10 @@ export default function EventVideoView({
   useEffect(() => {
     setFavorite(Boolean(event.favorite));
     setFavoriting(false);
+    setReviewedUseful(event.reviewVerdict === "useful");
+    setReviewing(null);
     setMediaError(false);
-  }, [event.favorite, event.id]);
+  }, [event.favorite, event.id, event.reviewVerdict]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -202,6 +210,42 @@ export default function EventVideoView({
     }
   }
 
+  async function handleReview(verdict: "useful" | "not_useful") {
+    if (reviewing || deleting || (verdict === "useful" && reviewedUseful)) return;
+
+    const wasReviewedUseful = reviewedUseful;
+    setReviewing(verdict);
+    if (verdict === "useful") {
+      setReviewedUseful(true);
+    } else {
+      markEventDeletedOptimistically(event.id);
+    }
+
+    try {
+      const result = await reviewEventAction(event.id, verdict);
+      if (result.ok) {
+        if (verdict === "not_useful") {
+          window.location.replace(backHref);
+        } else {
+          router.refresh();
+        }
+        return;
+      }
+
+      if (verdict === "not_useful") rollbackOptimisticallyDeletedEvent(event.id);
+      setReviewedUseful(wasReviewedUseful);
+      alert(result.status === 401
+        ? "Not authorized. Log in first to review clips."
+        : "Failed to save review.");
+    } catch {
+      if (verdict === "not_useful") rollbackOptimisticallyDeletedEvent(event.id);
+      setReviewedUseful(wasReviewedUseful);
+      alert("Network error.");
+    } finally {
+      setReviewing(null);
+    }
+  }
+
   function NavigationButton({
     href,
     label,
@@ -310,8 +354,48 @@ export default function EventVideoView({
         {canDelete && (
           <button
             type="button"
+            onClick={() => void handleReview("useful")}
+            disabled={deleting || reviewing !== null || reviewedUseful}
+            className={`p-2 rounded-lg transition-colors disabled:opacity-60 ${
+              reviewedUseful
+                ? "bg-emerald-400/15 text-emerald-300"
+                : "text-gray-300 hover:bg-emerald-400/10 hover:text-emerald-300"
+            }`}
+            title={reviewedUseful ? "Marked useful" : "Useful capture"}
+            aria-label={reviewedUseful ? "Marked as useful" : "Mark capture as useful"}
+          >
+            {reviewing === "useful" ? (
+              <span className="inline-block h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+            ) : (
+              <svg className="h-5 w-5" fill={reviewedUseful ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10v10H4V10h3Zm4 10H9V9l4-6 1 1v5h5a2 2 0 0 1 2 2l-2 7a2 2 0 0 1-2 2h-6Z" />
+              </svg>
+            )}
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => void handleReview("not_useful")}
+            disabled={deleting || reviewing !== null}
+            className="p-2 rounded-lg text-gray-400 hover:text-red-300 hover:bg-red-400/10 disabled:opacity-40 transition-colors"
+            title="Not useful — delete clip"
+            aria-label="Mark capture as not useful and delete it"
+          >
+            {reviewing === "not_useful" ? (
+              <span className="inline-block h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+            ) : (
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14V4H4v10h3Zm4-10H9v11l4 6 1-1v-5h5a2 2 0 0 0 2-2l-2-7a2 2 0 0 0-2-2h-6Z" />
+              </svg>
+            )}
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
             onClick={handleFavorite}
-            disabled={deleting || favoriting}
+            disabled={deleting || favoriting || reviewing !== null}
             className={`p-2 rounded-lg transition-colors disabled:opacity-40 ${
               favorite
                 ? "text-amber-300 hover:text-amber-200 hover:bg-amber-400/10"
@@ -339,7 +423,7 @@ export default function EventVideoView({
           <button
             type="button"
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || reviewing !== null}
             className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-white/10 disabled:opacity-40 transition-colors"
             title="Delete event"
             aria-label="Delete event"

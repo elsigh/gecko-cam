@@ -134,6 +134,12 @@ export default function EventsClient({
     )));
   }
 
+  function handleReviewChange(id: string) {
+    setEvents((prev) => prev.map((event) => (
+      event.id === id ? { ...event, reviewVerdict: "useful" } : event
+    )));
+  }
+
   function toggleSelect(id: string) {
     const index = visibleEvents.findIndex((event) => event.id === id);
     if (index === -1) return;
@@ -300,6 +306,7 @@ export default function EventsClient({
                   timestampLabel={formatEventTime(event.timestamp)}
                   onDelete={canManage && !selectMode ? handleDelete : undefined}
                   onFavoriteChange={handleFavoriteChange}
+                  onReviewChange={handleReviewChange}
                   selectable={selectMode}
                   selected={selected.has(event.id)}
                   onSelect={toggleSelect}

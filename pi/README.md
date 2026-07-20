@@ -72,8 +72,9 @@ In `gecko_cam.py`:
 
 - `MOTION_THRESHOLD` — higher = less sensitive.
 - `SUSTAINED_MOTION_FRAMES` — consecutive frames above threshold before trigger (reduces light-flicker false positives).
-- `FEEDING_WINDOW_*` — more sensitive evening profile for the usual bug-hunt window, so slow emergence from the hide triggers earlier without making the whole day noisier.
-- `CLIP_RECORDING_DISABLED_*` — local-time window when motion analysis keeps the background model warm but skips clip capture; currently 04:00-20:00.
+- `FEEDING_WINDOW_*` — more sensitive 20:00-23:00 Pacific-time profile for the usual bug-hunt window. During calibration, every triggered clip in this window is retained for review.
+- `CLIP_RECORDING_DISABLED_*` — Pacific-time window when clip capture is disabled; currently 23:00-20:00.
+- `ANALYSIS_WARMUP_START_*` — starts motion analysis five minutes before capture so the background model is ready at 20:00. Outside 19:55-23:00, motion analysis pauses while the live HLS stream stays available.
 - `MIN_CLIP_SECONDS` — once a capture starts, keep recording until at least this many seconds have elapsed even if motion briefly pauses.
 - `MAX_CLIP_SECONDS` — hard ceiling for a single capture when activity keeps going.
 - `RING_BUFFER_SECONDS` — extra circular pre-roll kept before the trigger; raise this if action tends to start before motion crosses threshold.

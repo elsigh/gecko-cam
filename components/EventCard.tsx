@@ -3,7 +3,11 @@
 import { useEffect, useState, ViewTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { deleteEventAction, setFavoriteEventAction } from "@/app/actions/events";
+import {
+  deleteEventAction,
+  reviewEventAction,
+  setFavoriteEventAction,
+} from "@/app/actions/events";
 import TransitionLink from "@/components/TransitionLink";
 import {
   markEventDeletedOptimistically,
@@ -32,6 +36,7 @@ interface EventCardProps {
   selected?: boolean;
   onSelect?: (id: string) => void;
   onFavoriteChange?: (id: string, favorite: boolean) => void;
+  onReviewChange?: (id: string) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -48,12 +53,15 @@ export default function EventCard({
   selected,
   onSelect,
   onFavoriteChange,
+  onReviewChange,
 }: EventCardProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [updatingFavorite, setUpdatingFavorite] = useState(false);
   const [imageBroken, setImageBroken] = useState(false);
   const [favorite, setFavorite] = useState(Boolean(event.favorite));
+  const [reviewedUseful, setReviewedUseful] = useState(event.reviewVerdict === "useful");
+  const [reviewing, setReviewing] = useState<"useful" | "not_useful" | null>(null);
   const optimisticallyDeletedIds = useOptimisticallyDeletedEventIds();
   const mediaTransitionName = eventMediaTransitionName(event.id);
   const titleTransitionName = eventTitleTransitionName(event.id);
@@ -63,7 +71,8 @@ export default function EventCard({
 
   useEffect(() => {
     setFavorite(Boolean(event.favorite));
-  }, [event.favorite, event.id]);
+    setReviewedUseful(event.reviewVerdict === "useful");
+  }, [event.favorite, event.id, event.reviewVerdict]);
 
   if (optimisticallyDeletedIds.has(event.id)) {
     return null;
@@ -123,6 +132,43 @@ export default function EventCard({
       alert("Network error.");
     } finally {
       setUpdatingFavorite(false);
+    }
+  }
+
+  async function handleReview(verdict: "useful" | "not_useful") {
+    if (!onDelete || reviewing || (verdict === "useful" && reviewedUseful)) return;
+
+    const wasReviewedUseful = reviewedUseful;
+    setReviewing(verdict);
+    if (verdict === "useful") {
+      setReviewedUseful(true);
+    } else {
+      markEventDeletedOptimistically(event.id);
+    }
+
+    try {
+      const result = await reviewEventAction(event.id, verdict);
+      if (result.ok) {
+        if (verdict === "not_useful") {
+          onDelete(event.id);
+        } else {
+          onReviewChange?.(event.id);
+          router.refresh();
+        }
+        return;
+      }
+
+      if (verdict === "not_useful") rollbackOptimisticallyDeletedEvent(event.id);
+      setReviewedUseful(wasReviewedUseful);
+      alert(result.status === 401
+        ? "Not authorized. Log in first to review clips."
+        : "Failed to save review.");
+    } catch {
+      if (verdict === "not_useful") rollbackOptimisticallyDeletedEvent(event.id);
+      setReviewedUseful(wasReviewedUseful);
+      alert("Network error.");
+    } finally {
+      setReviewing(null);
     }
   }
 
@@ -218,8 +264,8 @@ export default function EventCard({
         </TransitionLink>
       )}
 
-      <div className="px-3 py-2 flex items-center justify-between">
-        <div>
+      <div className="px-3 py-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
           <ViewTransition name={titleTransitionName} share="vt-event-title-share" default="none">
             <div className="text-sm font-medium text-white">
               {timestampLabel || formatEventTime(event.timestamp)}
@@ -242,22 +288,60 @@ export default function EventCard({
         </div>
 
         {!selectable && onDelete && (
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={deleting}
-            className="text-gray-500 hover:text-red-400 transition-colors disabled:opacity-40 p-1"
-            title="Delete event"
-          >
-            {deleting ? (
-              <span className="inline-block w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" aria-hidden />
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <title>Delete event</title>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            )}
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => void handleReview("useful")}
+              disabled={deleting || reviewing !== null || reviewedUseful}
+              className={`rounded-md p-1.5 transition-colors disabled:opacity-60 ${
+                reviewedUseful
+                  ? "bg-emerald-400/15 text-emerald-300"
+                  : "text-gray-400 hover:bg-emerald-400/10 hover:text-emerald-300"
+              }`}
+              title={reviewedUseful ? "Marked useful" : "Useful capture"}
+              aria-label={reviewedUseful ? "Marked as useful" : "Mark capture as useful"}
+            >
+              {reviewing === "useful" ? (
+                <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+              ) : (
+                <svg className="h-4 w-4" fill={reviewedUseful ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10v10H4V10h3Zm4 10H9V9l4-6 1 1v5h5a2 2 0 0 1 2 2l-2 7a2 2 0 0 1-2 2h-6Z" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleReview("not_useful")}
+              disabled={deleting || reviewing !== null}
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-400/10 hover:text-red-300 disabled:opacity-40"
+              title="Not useful — delete clip"
+              aria-label="Mark capture as not useful and delete it"
+            >
+              {reviewing === "not_useful" ? (
+                <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+              ) : (
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14V4H4v10h3Zm4-10H9v11l4 6 1-1v-5h5a2 2 0 0 0 2-2l-2-7a2 2 0 0 0-2-2h-6Z" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting || reviewing !== null}
+              className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-white/5 hover:text-red-400 disabled:opacity-40"
+              title="Delete without review"
+              aria-label="Delete event without review"
+            >
+              {deleting ? (
+                <span className="inline-block h-4 w-4 rounded-full border-2 border-gray-500 border-t-transparent animate-spin" aria-hidden />
+              ) : (
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              )}
+            </button>
+          </div>
         )}
       </div>
     </div>

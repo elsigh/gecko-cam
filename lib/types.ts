@@ -9,6 +9,7 @@ export type GeckoEventType =
 
 export type GeckoEventZone = "bowl" | "dry_hide" | "rock_hide" | "open";
 export type GeckoEventRetentionCategory = "keep_video" | "summary_only" | "review";
+export type GeckoEventReviewVerdict = "useful" | "not_useful";
 
 export interface GeckoEvent {
   id: string;
@@ -24,6 +25,8 @@ export interface GeckoEvent {
   sourceZone?: GeckoEventZone | null;
   targetZone?: GeckoEventZone | null;
   retentionCategory?: GeckoEventRetentionCategory;
+  reviewVerdict?: "useful";
+  reviewedAt?: number;
 }
 
 export interface EventListResponse {
