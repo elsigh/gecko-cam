@@ -1,0 +1,50 @@
+pi/test_event_classifier.py
+  s_c7927f5b1a1d07::t_7a9ccb7630b92c 1-54
+pi/capture_schedule.py
+  s_c7927f5b1a1d07::t_e58faa86afa25e 1-24
+pi/gecko_cam.py
+  s_c7927f5b1a1d07::t_e58faa86afa25e 45,65,176,186,196
+  s_c7927f5b1a1d07::t_6c4950a63abb78 9,14-15,22,60,67-68,73-75,78-80
+  s_c7927f5b1a1d07::t_e11824adaa232e 13,463
+  s_c7927f5b1a1d07::t_3a1dbcde908dde 195,197-204,354,435-447,522-527
+  s_c7927f5b1a1d07::t_8539f19175905f 528
+components/EventCard.tsx
+  s_c7927f5b1a1d07::t_765793eb2a2a4e 6-10,39,56,63-64,74,138-174,267-268,291-344
+  s_c7927f5b1a1d07::t_b493b7442e77c8 75
+components/EventVideoView.tsx
+  s_c7927f5b1a1d07::t_b276c1f266e98a 6-10,65-66,78-79,81,213-248,354-393,398,426
+pi/README.md
+  s_c7927f5b1a1d07::t_7a9ccb7630b92c 77
+  s_c7927f5b1a1d07::t_cbcb9a39de60b9 75-76
+pi/test_capture_schedule.py
+  s_c7927f5b1a1d07::t_e58faa86afa25e 1-30
+pi/event_classifier.py
+  s_c7927f5b1a1d07::t_394e0b49126a6c 76,130,144,153,161,165-167
+  s_c7927f5b1a1d07::t_35b85d0d3c8cb4 168-169
+lib/types.ts
+  s_c7927f5b1a1d07::t_1f64e4feca4ab5 12,28-29
+lib/kv.ts
+  s_c7927f5b1a1d07::t_1f64e4feca4ab5 3,10-24,190-238
+  s_c7927f5b1a1d07::t_90880bcdc24a8d 239-240
+components/EventsClient.tsx
+  s_c7927f5b1a1d07::t_b493b7442e77c8 137-142,309
+app/actions/events.ts
+  s_c7927f5b1a1d07::t_3b6a6a1c3f447c 5-11,15,31-34,167-201
+  s_c7927f5b1a1d07::t_77d4b4f0151ef9 202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3ba283a969abc4ca1a3eefbb6f97ab15a0bd614a",
+  "prompts": {},
+  "sessions": {
+    "s_c7927f5b1a1d07": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8068-d937-7c32-8ff0-d230125bd46d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>"
+    }
+  }
+}
