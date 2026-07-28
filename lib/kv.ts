@@ -21,6 +21,10 @@ type CaptureReview = {
   sourceZone?: GeckoEvent["sourceZone"];
   targetZone?: GeckoEvent["targetZone"];
   retentionCategory?: GeckoEvent["retentionCategory"];
+  triggerReason?: GeckoEvent["triggerReason"];
+  triggerBowlMotionPixels?: number;
+  triggeredAt?: number;
+  preRollSeconds?: number;
 };
 
 function getBaseUrl(): string {
@@ -211,6 +215,10 @@ export async function reviewEvent(
     sourceZone: event.sourceZone,
     targetZone: event.targetZone,
     retentionCategory: event.retentionCategory,
+    triggerReason: event.triggerReason,
+    triggerBowlMotionPixels: event.triggerBowlMotionPixels,
+    triggeredAt: event.triggeredAt,
+    preRollSeconds: event.preRollSeconds,
   };
   const reviews = [
     review,

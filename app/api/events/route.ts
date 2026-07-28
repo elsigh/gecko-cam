@@ -48,6 +48,10 @@ export async function POST(request: NextRequest) {
     sourceZone,
     targetZone,
     retentionCategory,
+    triggerReason,
+    triggerBowlMotionPixels,
+    triggeredAt,
+    preRollSeconds,
   } = body;
 
   if (!id || !timestamp || !thumbnailUrl) {
@@ -69,6 +73,12 @@ export async function POST(request: NextRequest) {
     sourceZone: sourceZone ?? null,
     targetZone: targetZone ?? null,
     retentionCategory,
+    triggerReason,
+    triggerBowlMotionPixels: triggerBowlMotionPixels === undefined
+      ? undefined
+      : Number(triggerBowlMotionPixels),
+    triggeredAt: triggeredAt === undefined ? undefined : Number(triggeredAt),
+    preRollSeconds: preRollSeconds === undefined ? undefined : Number(preRollSeconds),
   };
 
   try {

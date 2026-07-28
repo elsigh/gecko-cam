@@ -6,7 +6,7 @@ Runs picamera2 with dual outputs:
   - main (1280x720) → FFmpeg → HLS segments in /tmp/hls/
   - lores (320x240, YUV420) → OpenCV MOG2 motion detection
 
-On motion: flushes CircularOutput ring buffer (30s pre) then keeps recording
+On motion: flushes CircularOutput ring buffer (60s pre) then keeps recording
 while motion continues, up to MAX_CLIP_SECONDS. Clip ends after POST_MOTION_HOLD
 seconds of inactivity.
 
@@ -43,7 +43,12 @@ from picamera2.outputs import CircularOutput, FfmpegOutput
 
 import requests
 from capture_schedule import is_pacific_time_window
-from event_classifier import MotionTracePoint, classify_event, zone_for_point
+from event_classifier import MotionTracePoint, ZONE_RECTS, classify_event, zone_for_point
+from motion_trigger import (
+    BOWL_ACTIVITY_TRIGGER,
+    GLOBAL_MOTION_TRIGGER,
+    choose_trigger_reason,
+)
 from upload_event import upload_event
 
 # ── Configuration ──────────────────────────────────────────────────────────────
@@ -57,15 +62,20 @@ WARMUP_FRAMES = 60           # frames to feed MOG2 before arming motion detectio
 POST_MOTION_HOLD = 8         # restore the earlier tail length after motion stops
 MIN_CLIP_SECONDS = 30        # don't end a capture early just because motion paused briefly
 MAX_CLIP_SECONDS = 45        # still bounded, but lets interesting events run past 30s
-RING_BUFFER_SECONDS = 30     # seconds of pre-motion buffer
+RING_BUFFER_SECONDS = 60     # long enough to include approach and strike before delayed motion
 FPS = 30
 KEYFRAME_INTERVAL_FRAMES = 15  # 0.5s GOP so CircularOutput pre-roll starts close to the trigger
 POLL_INTERVAL = 0.1          # motion detection poll interval (seconds)
 CAMERA_ROTATION = 180        # upright source feed so browser/native controls stay upright
-TRACE_HISTORY_SECONDS = 30   # matches the pre-roll window we use for behavior labeling
+TRACE_HISTORY_SECONDS = 60   # matches the pre-roll window we use for behavior labeling
 TRACE_MIN_CONTOUR_AREA = 80
 FEEDING_WINDOW_MIN_CLIP_SECONDS = 45
 FEEDING_WINDOW_MAX_CLIP_SECONDS = 120
+BOWL_ACTIVITY_MOTION_PIXELS = 40
+BOWL_ACTIVITY_SUSTAINED_FRAMES = 3  # 0.3s at the 10Hz analysis cadence
+BOWL_ACTIVITY_COOLDOWN_SECONDS = 180
+BOWL_ACTIVITY_MIN_CLIP_SECONDS = 60
+BOWL_ACTIVITY_MAX_CLIP_SECONDS = 120
 
 # Reduce false positives from lighting (heat-lamp thermostat cycling at 90°F)
 SUSTAINED_MOTION_FRAMES = 4   # require motion for N consecutive frames (~0.13s)
@@ -171,6 +181,12 @@ FEEDING_CAPTURE_POLICY = CapturePolicy(
     max_clip_seconds=FEEDING_WINDOW_MAX_CLIP_SECONDS,
 )
 
+BOWL_CAPTURE_POLICY = CapturePolicy(
+    name="bowl_activity",
+    min_clip_seconds=BOWL_ACTIVITY_MIN_CLIP_SECONDS,
+    max_clip_seconds=BOWL_ACTIVITY_MAX_CLIP_SECONDS,
+)
+
 
 def _is_feeding_window(now: float) -> bool:
     return is_pacific_time_window(
@@ -271,10 +287,15 @@ def _empty_motion_summary() -> dict[str, float | int]:
         "startCoverageSkips": 0,
         "nearThresholdFrames": 0,
         "aboveThresholdFrames": 0,
+        "bowlNearThresholdFrames": 0,
+        "bowlAboveThresholdFrames": 0,
+        "bowlTriggersStarted": 0,
+        "bowlCooldownSkips": 0,
         "capturesStarted": 0,
         "cooldownSkips": 0,
         "snoozedSkips": 0,
         "maxMotionScore": 0.0,
+        "maxBowlMotionPixels": 0,
         "maxBrightnessDelta": 0.0,
         "maxBrightnessWindowRange": 0.0,
         "maxCoverageFraction": 0.0,
@@ -334,10 +355,15 @@ def run() -> None:
     capture_motion_score = 0.0
     capture_peak_motion_score = 0.0
     capture_trace_points: list[MotionTracePoint] = []
+    capture_trigger_reason = GLOBAL_MOTION_TRIGGER
+    capture_trigger_bowl_motion_pixels = 0
+    capture_triggered_at_ms = 0
     recent_trace_points: deque[MotionTracePoint] = deque()
     capture_started_in_feeding_window = False
     warmup_remaining = WARMUP_FRAMES
     consecutive_high_motion = 0
+    consecutive_bowl_activity = 0
+    bowl_trigger_cooldown_until = 0.0
     rolling_brightness: float | None = None  # EMA of mean Y channel
     last_frame_passed_filters = time.time()  # tracks when a frame last cleared all filters
     last_stall_warn = 0.0                    # rate-limits stall warning logs
@@ -508,10 +534,21 @@ def run() -> None:
                         eventType=classification.event_type,
                         summary=classification.summary,
                         retentionCategory=classification.retention_category,
+                        triggerReason=capture_trigger_reason,
+                        triggerBowlMotionPixels=capture_trigger_bowl_motion_pixels,
+                        triggeredAt=capture_triggered_at_ms,
+                        preRollSeconds=RING_BUFFER_SECONDS,
                     )
+                    event_payload: dict[str, str | float | int | None] = {
+                        **classification.as_payload(),
+                        "triggerReason": capture_trigger_reason,
+                        "triggerBowlMotionPixels": capture_trigger_bowl_motion_pixels,
+                        "triggeredAt": capture_triggered_at_ms,
+                        "preRollSeconds": RING_BUFFER_SECONDS,
+                    }
                     threading.Thread(
                         target=_upload_worker,
-                        args=(clip_upload_path, capture_motion_score, classification.as_payload()),
+                        args=(clip_upload_path, capture_motion_score, event_payload),
                         daemon=True,
                     ).start()
                     clip_upload_path = None
@@ -521,6 +558,7 @@ def run() -> None:
 
             if not motion_analysis_enabled and not capturing:
                 consecutive_high_motion = 0
+                consecutive_bowl_activity = 0
                 motion_cooldown = max(0.0, motion_cooldown - 1.0)
                 flush_motion_summary()
                 time.sleep(1.0)
@@ -609,6 +647,7 @@ def run() -> None:
                     log.debug("Brightness delta %.1f > %d — skipping (lighting change)",
                               brightness_delta, BRIGHTNESS_DELTA_THRESHOLD)
                 consecutive_high_motion = 0
+                consecutive_bowl_activity = 0
                 motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
                 time.sleep(POLL_INTERVAL)
                 continue
@@ -629,6 +668,7 @@ def run() -> None:
                     coverage_fraction,
                 )
                 consecutive_high_motion = 0
+                consecutive_bowl_activity = 0
                 stall_seconds = now - last_frame_passed_filters
                 if stall_seconds > FILTER_STALL_RESET_SECONDS:
                     # Stuck for too long — bg_sub never adapted. Reset it.
@@ -668,6 +708,7 @@ def run() -> None:
                     warmup_remaining -= 1
                 trim_recent_trace_points(now)
                 consecutive_high_motion = 0
+                consecutive_bowl_activity = 0
                 motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
                 flush_motion_summary()
                 time.sleep(POLL_INTERVAL)
@@ -678,9 +719,19 @@ def run() -> None:
             )
             motion_score = sum(cv2.contourArea(c) for c in contours)
             coverage_fraction = total_fg_pixels / FRAME_PIXELS
+            bowl_left, bowl_top, bowl_right, bowl_bottom = ZONE_RECTS["bowl"]
+            bowl_mask = fg_mask[
+                int(bowl_top * LORES_H):int(bowl_bottom * LORES_H),
+                int(bowl_left * LORES_W):int(bowl_right * LORES_W),
+            ]
+            bowl_motion_pixels = cv2.countNonZero(bowl_mask)
             motion_summary["maxMotionScore"] = max(
                 float(motion_summary["maxMotionScore"]),
                 motion_score,
+            )
+            motion_summary["maxBowlMotionPixels"] = max(
+                int(motion_summary["maxBowlMotionPixels"]),
+                bowl_motion_pixels,
             )
 
             trace_point = build_trace_point(
@@ -699,6 +750,7 @@ def run() -> None:
                 warmup_remaining -= 1
                 motion_cooldown = max(0.0, motion_cooldown - POLL_INTERVAL)
                 consecutive_high_motion = 0
+                consecutive_bowl_activity = 0
                 time.sleep(POLL_INTERVAL)
                 continue
 
@@ -719,12 +771,54 @@ def run() -> None:
             else:
                 consecutive_high_motion = 0
 
-            # ── Trigger new capture ────────────────────────────────────────────
+            feeding_window_active = _is_feeding_window(now)
             if (
-                consecutive_high_motion >= detection_profile.sustained_motion_frames
-                and not capturing
+                feeding_window_active
+                and bowl_motion_pixels > BOWL_ACTIVITY_MOTION_PIXELS * NEAR_THRESHOLD_RATIO
             ):
-                trigger_frames = consecutive_high_motion
+                motion_summary["bowlNearThresholdFrames"] += 1
+
+            if (
+                feeding_window_active
+                and bowl_motion_pixels > BOWL_ACTIVITY_MOTION_PIXELS
+            ):
+                motion_summary["bowlAboveThresholdFrames"] += 1
+                consecutive_bowl_activity += 1
+                if capturing:
+                    last_motion_during_capture = now
+            else:
+                consecutive_bowl_activity = 0
+
+            # ── Trigger new capture ────────────────────────────────────────────
+            bowl_cooldown_remaining = max(0.0, bowl_trigger_cooldown_until - now)
+            if (
+                feeding_window_active
+                and consecutive_bowl_activity == BOWL_ACTIVITY_SUSTAINED_FRAMES
+                and bowl_cooldown_remaining > 0
+            ):
+                motion_summary["bowlCooldownSkips"] += 1
+                _log_remote_motion(
+                    "motion_skipped",
+                    reason="bowl_cooldown",
+                    bowlMotionPixels=bowl_motion_pixels,
+                    bowlCooldownRemainingSeconds=round(bowl_cooldown_remaining, 1),
+                    min_interval=30,
+                )
+
+            trigger_reason = choose_trigger_reason(
+                global_motion_frames=consecutive_high_motion,
+                global_motion_frames_required=detection_profile.sustained_motion_frames,
+                bowl_activity_frames=consecutive_bowl_activity,
+                bowl_activity_frames_required=BOWL_ACTIVITY_SUSTAINED_FRAMES,
+                feeding_window_active=feeding_window_active,
+                bowl_cooldown_remaining=bowl_cooldown_remaining,
+            )
+            if trigger_reason is not None and not capturing:
+                trigger_frames = (
+                    consecutive_bowl_activity
+                    if trigger_reason == BOWL_ACTIVITY_TRIGGER
+                    else consecutive_high_motion
+                )
                 recent_brightness_blocks = len(recent_brightness_block_times)
                 recent_coverage_blocks = len(recent_coverage_block_times)
                 recent_filter_blocks = recent_brightness_blocks + recent_coverage_blocks
@@ -734,6 +828,8 @@ def run() -> None:
                         "motion_skipped",
                         reason="cooldown",
                         motionScore=round(motion_score, 1),
+                        triggerReason=trigger_reason,
+                        bowlMotionPixels=bowl_motion_pixels,
                         cooldownRemainingSeconds=round(motion_cooldown, 1),
                         consecutiveFrames=trigger_frames,
                         min_interval=10,
@@ -749,6 +845,8 @@ def run() -> None:
                         "motion_skipped",
                         reason="snoozed",
                         motionScore=round(motion_score, 1),
+                        triggerReason=trigger_reason,
+                        bowlMotionPixels=bowl_motion_pixels,
                         consecutiveFrames=trigger_frames,
                         min_interval=10,
                     )
@@ -765,6 +863,8 @@ def run() -> None:
                         "motion_skipped",
                         reason="brightness_recovery",
                         motionScore=round(motion_score, 1),
+                        triggerReason=trigger_reason,
+                        bowlMotionPixels=bowl_motion_pixels,
                         coverageFraction=round(coverage_fraction, 4),
                         secondsSinceBrightnessModeSwitch=round(
                             now - last_brightness_mode_switch, 1
@@ -785,6 +885,8 @@ def run() -> None:
                         "motion_skipped",
                         reason="start_coverage_filter",
                         motionScore=round(motion_score, 1),
+                        triggerReason=trigger_reason,
+                        bowlMotionPixels=bowl_motion_pixels,
                         coverageFraction=round(coverage_fraction, 4),
                         recentBrightnessBlocks=recent_brightness_blocks,
                         recentCoverageBlocks=recent_coverage_blocks,
@@ -798,7 +900,10 @@ def run() -> None:
                 allow_localized_brightness_drift_override = (
                     brightness_window_range <= LOCALIZED_DRIFT_OVERRIDE_MAX_BRIGHTNESS_RANGE
                     and coverage_fraction <= LOCALIZED_DRIFT_OVERRIDE_MAX_COVERAGE_FRACTION
-                    and motion_score >= LOCALIZED_DRIFT_OVERRIDE_MIN_MOTION_SCORE
+                    and (
+                        motion_score >= LOCALIZED_DRIFT_OVERRIDE_MIN_MOTION_SCORE
+                        or trigger_reason == BOWL_ACTIVITY_TRIGGER
+                    )
                     and recent_filter_blocks <= LOCALIZED_DRIFT_OVERRIDE_MAX_RECENT_FILTER_BLOCKS
                 )
 
@@ -809,6 +914,8 @@ def run() -> None:
                             "trigger_override",
                             reason="localized_motion_after_brightness_drift",
                             motionScore=round(motion_score, 1),
+                            triggerReason=trigger_reason,
+                            bowlMotionPixels=bowl_motion_pixels,
                             coverageFraction=round(coverage_fraction, 4),
                             brightnessWindowRange=round(brightness_window_range, 3),
                             recentBrightnessBlocks=recent_brightness_blocks,
@@ -823,6 +930,8 @@ def run() -> None:
                             "motion_skipped",
                             reason="brightness_drift_window",
                             motionScore=round(motion_score, 1),
+                            triggerReason=trigger_reason,
+                            bowlMotionPixels=bowl_motion_pixels,
                             coverageFraction=round(coverage_fraction, 4),
                             brightnessWindowRange=round(brightness_window_range, 3),
                             recentBrightnessBlocks=recent_brightness_blocks,
@@ -847,6 +956,8 @@ def run() -> None:
                         "motion_skipped",
                         reason="noisy_window",
                         motionScore=round(motion_score, 1),
+                        triggerReason=trigger_reason,
+                        bowlMotionPixels=bowl_motion_pixels,
                         coverageFraction=round(coverage_fraction, 4),
                         recentBrightnessBlocks=recent_brightness_blocks,
                         recentCoverageBlocks=recent_coverage_blocks,
@@ -859,18 +970,28 @@ def run() -> None:
 
                 clip_path = CLIPS_DIR / f"{uuid4()}.mp4"
                 log.info(
-                    "Motion detected (score=%.0f) → capturing %s",
+                    "Motion detected (%s, score=%.0f, bowl=%dpx) → capturing %s",
+                    trigger_reason,
                     motion_score,
+                    bowl_motion_pixels,
                     clip_path,
                 )
                 consecutive_high_motion = 0
-                active_capture_policy = capture_policy
+                consecutive_bowl_activity = 0
+                active_capture_policy = (
+                    BOWL_CAPTURE_POLICY
+                    if trigger_reason == BOWL_ACTIVITY_TRIGGER
+                    else capture_policy
+                )
                 capture_start_time = now
                 last_motion_during_capture = now
                 clip_upload_path = str(clip_path)
                 capture_motion_score = motion_score
                 capture_peak_motion_score = motion_score
-                capture_started_in_feeding_window = _is_feeding_window(now)
+                capture_started_in_feeding_window = feeding_window_active
+                capture_trigger_reason = trigger_reason
+                capture_trigger_bowl_motion_pixels = bowl_motion_pixels
+                capture_triggered_at_ms = int(now * 1000)
                 capture_trace_points = [
                     point
                     for point in recent_trace_points
@@ -878,16 +999,26 @@ def run() -> None:
                 ]
                 capturing = True
                 motion_summary["capturesStarted"] += 1
+                if trigger_reason == BOWL_ACTIVITY_TRIGGER:
+                    motion_summary["bowlTriggersStarted"] += 1
+                    bowl_trigger_cooldown_until = (
+                        now + BOWL_ACTIVITY_COOLDOWN_SECONDS
+                    )
 
                 _log_remote_motion(
                     "capture_started",
                     min_interval=0,
                     clipPath=str(clip_path),
                     detectionProfile=detection_profile.name,
+                    triggerReason=trigger_reason,
                     motionScore=round(motion_score, 1),
                     motionThreshold=detection_profile.motion_threshold,
                     consecutiveFrames=trigger_frames,
                     sustainedMotionFrames=detection_profile.sustained_motion_frames,
+                    bowlMotionPixels=bowl_motion_pixels,
+                    bowlMotionThreshold=BOWL_ACTIVITY_MOTION_PIXELS,
+                    bowlSustainedFrames=BOWL_ACTIVITY_SUSTAINED_FRAMES,
+                    preRollSeconds=RING_BUFFER_SECONDS,
                     capturePolicy=active_capture_policy.name,
                     minClipSeconds=active_capture_policy.min_clip_seconds,
                     maxClipSeconds=active_capture_policy.max_clip_seconds,
@@ -911,7 +1042,7 @@ def run() -> None:
 def _upload_worker(
     clip_path: str,
     motion_score: float,
-    classification: dict[str, str | None],
+    classification: dict[str, str | float | int | None],
 ) -> None:
     try:
         upload_event(clip_path, motion_score, classification)

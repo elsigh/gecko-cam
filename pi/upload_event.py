@@ -21,6 +21,7 @@ from uuid import uuid4
 CLIP_FPS = 30  # must match gecko_cam.py FPS
 
 import requests
+from clip_timing import choose_thumbnail_time
 
 log = logging.getLogger("upload_event")
 
@@ -108,17 +109,20 @@ def _wrap_h264_in_mp4(clip_path: str) -> None:
         raise
 
 
-def _choose_thumbnail_time(duration: float) -> float:
-    """Pick a representative frame slightly into the clip instead of frame 0."""
-    if duration <= 0:
-        return 0
-    return max(0, min(duration * 0.2, 2.0, duration - 0.1))
-
-
-def _extract_thumbnail(clip_path: str, duration: float) -> str:
+def _extract_thumbnail(
+    clip_path: str,
+    duration: float,
+    *,
+    pre_roll_seconds: float = 0,
+    trigger_reason: str | None = None,
+) -> str:
     """Extract a representative frame from the clip as a JPEG, return the path."""
     thumb_path = clip_path.replace(".mp4", "_thumb.jpg")
-    seek_seconds = _choose_thumbnail_time(duration)
+    seek_seconds = choose_thumbnail_time(
+        duration,
+        pre_roll_seconds=pre_roll_seconds,
+        trigger_reason=trigger_reason,
+    )
     result = subprocess.run(
         [
             "ffmpeg", "-y",
@@ -156,7 +160,7 @@ def _get_duration(clip_path: str) -> float:
 def upload_event(
     clip_path: str,
     motion_score: float,
-    classification: dict[str, str | None] | None = None,
+    classification: dict[str, str | float | int | None] | None = None,
 ) -> None:
     if not VERCEL_APP_URL:
         raise RuntimeError("VERCEL_APP_URL not set")
@@ -171,7 +175,7 @@ def upload_event(
         _wrap_h264_in_mp4(clip_path)
 
         event_id = str(uuid4())
-        timestamp = int(time.time() * 1000)  # Unix ms
+        timestamp = int(classification.get("triggeredAt") or time.time() * 1000)
         clip_name = Path(clip_path).name
 
         duration = _get_duration(clip_path)
@@ -191,7 +195,12 @@ def upload_event(
                 classification.get("eventType", "summary_only"),
             )
 
-        thumb_path = _extract_thumbnail(clip_path, duration)
+        thumb_path = _extract_thumbnail(
+            clip_path,
+            duration,
+            pre_roll_seconds=float(classification.get("preRollSeconds") or 0),
+            trigger_reason=str(classification.get("triggerReason") or "") or None,
+        )
         thumb_name = Path(thumb_path).name
         log.info("[%s] Uploading thumbnail: %s", event_id, thumb_path)
         thumbnail_url = _upload_to_blob(thumb_path, f"thumbnails/{thumb_name}", "image/jpeg")
