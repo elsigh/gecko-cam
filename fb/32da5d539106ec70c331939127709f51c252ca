@@ -1,0 +1,19 @@
+pi/gecko_cam.py
+  s_c7927f5b1a1d07::t_9c510c4ca3b38d 74,300-301,423-424,443-444,447-448,451,661-664,668,670,729,732-733,750-751
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "fb32da5d539106ec70c331939127709f51c252ca",
+  "prompts": {},
+  "sessions": {
+    "s_c7927f5b1a1d07": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8068-d937-7c32-8ff0-d230125bd46d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>"
+    }
+  }
+}
