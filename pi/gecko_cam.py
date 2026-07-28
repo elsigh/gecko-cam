@@ -71,7 +71,7 @@ TRACE_HISTORY_SECONDS = 60   # matches the pre-roll window we use for behavior l
 TRACE_MIN_CONTOUR_AREA = 80
 FEEDING_WINDOW_MIN_CLIP_SECONDS = 45
 FEEDING_WINDOW_MAX_CLIP_SECONDS = 120
-BOWL_ACTIVITY_MOTION_PIXELS = 40
+BOWL_ACTIVITY_MOTION_PIXELS = 4
 BOWL_ACTIVITY_SUSTAINED_FRAMES = 3  # 0.3s at the 10Hz analysis cadence
 BOWL_ACTIVITY_COOLDOWN_SECONDS = 180
 BOWL_ACTIVITY_MIN_CLIP_SECONDS = 60
@@ -132,8 +132,6 @@ CAPTURE_START_MAX_COVERAGE_FRACTION = 0.08
 SKIP_RETRY_COOLDOWN_SECONDS = 2
 
 LORES_W, LORES_H = 320, 240
-FRAME_PIXELS = LORES_W * LORES_H
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -299,6 +297,8 @@ def _empty_motion_summary() -> dict[str, float | int]:
         "maxBrightnessDelta": 0.0,
         "maxBrightnessWindowRange": 0.0,
         "maxCoverageFraction": 0.0,
+        "motionFrameWidth": 0,
+        "motionFrameHeight": 0,
     }
 
 
@@ -420,6 +420,8 @@ def run() -> None:
         motion_score: float,
         coverage_fraction: float,
         timestamp: float,
+        frame_width: int,
+        frame_height: int,
     ) -> MotionTracePoint | None:
         if motion_score <= 0:
             return None
@@ -438,13 +440,15 @@ def run() -> None:
 
         x = moments["m10"] / moments["m00"]
         y = moments["m01"] / moments["m00"]
+        normalized_x = x * LORES_W / frame_width
+        normalized_y = y * LORES_H / frame_height
         return MotionTracePoint(
             timestamp=timestamp,
-            x=float(x),
-            y=float(y),
+            x=float(normalized_x),
+            y=float(normalized_y),
             motion_score=float(motion_score),
             coverage_fraction=float(coverage_fraction),
-            zone=zone_for_point(float(x), float(y)),
+            zone=zone_for_point(float(normalized_x), float(normalized_y)),
         )
 
     def handle_signal(signum, frame):
@@ -654,12 +658,16 @@ def run() -> None:
 
             frame_bgr = cv2.cvtColor(lores, cv2.COLOR_YUV2BGR_I420)
             fg_mask = bg_sub.apply(frame_bgr)
+            motion_frame_height, motion_frame_width = fg_mask.shape
+            motion_frame_pixels = fg_mask.size
+            motion_summary["motionFrameWidth"] = motion_frame_width
+            motion_summary["motionFrameHeight"] = motion_frame_height
 
             # ── Coverage filter (catches lamp changes MOG2 has partially adapted to) ──
             total_fg_pixels = cv2.countNonZero(fg_mask)
-            if total_fg_pixels > FRAME_PIXELS * MAX_COVERAGE_FRACTION:
+            if total_fg_pixels > motion_frame_pixels * MAX_COVERAGE_FRACTION:
                 # >12% of frame in motion → global event (lighting), not gecko
-                coverage_fraction = total_fg_pixels / FRAME_PIXELS
+                coverage_fraction = total_fg_pixels / motion_frame_pixels
                 motion_summary["coverageBlocks"] += 1
                 recent_coverage_block_times.append(now)
                 trim_recent_events(recent_coverage_block_times, now)
@@ -718,11 +726,11 @@ def run() -> None:
                 fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
             motion_score = sum(cv2.contourArea(c) for c in contours)
-            coverage_fraction = total_fg_pixels / FRAME_PIXELS
+            coverage_fraction = total_fg_pixels / motion_frame_pixels
             bowl_left, bowl_top, bowl_right, bowl_bottom = ZONE_RECTS["bowl"]
             bowl_mask = fg_mask[
-                int(bowl_top * LORES_H):int(bowl_bottom * LORES_H),
-                int(bowl_left * LORES_W):int(bowl_right * LORES_W),
+                int(bowl_top * motion_frame_height):int(bowl_bottom * motion_frame_height),
+                int(bowl_left * motion_frame_width):int(bowl_right * motion_frame_width),
             ]
             bowl_motion_pixels = cv2.countNonZero(bowl_mask)
             motion_summary["maxMotionScore"] = max(
@@ -739,6 +747,8 @@ def run() -> None:
                 motion_score,
                 coverage_fraction,
                 now,
+                motion_frame_width,
+                motion_frame_height,
             )
             if trace_point is not None:
                 recent_trace_points.append(trace_point)
