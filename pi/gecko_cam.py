@@ -657,6 +657,10 @@ def run() -> None:
                 continue
 
             frame_bgr = cv2.cvtColor(lores, cv2.COLOR_YUV2BGR_I420)
+            # Picamera2 exposes the lores stream's padded row stride (384px on
+            # this camera) in the array. Analyze only the configured 320x240
+            # image so normalized zones line up with the visible video.
+            frame_bgr = frame_bgr[:LORES_H, :LORES_W]
             fg_mask = bg_sub.apply(frame_bgr)
             motion_frame_height, motion_frame_width = fg_mask.shape
             motion_frame_pixels = fg_mask.size
