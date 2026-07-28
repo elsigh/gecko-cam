@@ -1,0 +1,42 @@
+app/api/events/route.ts
+  s_c7927f5b1a1d07::t_12381ffbd3f600 51-54,76-81
+pi/clip_timing.py
+  s_c7927f5b1a1d07::t_062e23a10d6df6 1-19
+pi/test_upload_event.py
+  s_c7927f5b1a1d07::t_ba9a4286f057fa 1-2,4-8,10-18,20-28,30-39
+  s_c7927f5b1a1d07::t_062e23a10d6df6 3,9,19,29
+lib/types.ts
+  s_c7927f5b1a1d07::t_12381ffbd3f600 13,29-32
+pi/gecko_cam.py
+  s_c7927f5b1a1d07::t_fdf52afc4af47a 74
+  s_c7927f5b1a1d07::t_12381ffbd3f600 1045
+  s_c7927f5b1a1d07::t_0626c3307ed46b 366,537-540,542-548,551,561,650,671,711,722-727,732-735,753,774-791,793,795-797,799-821,831-832,848-849,866-867,888-889,903-906,917-918,933-934,959-960,973-974,976,980-985,991-994,1002-1006,1013,1018-1021
+  s_c7927f5b1a1d07::t_ba9a4286f057fa 78
+  s_c7927f5b1a1d07::t_669899216991d9 9,46-51,65,70,75-77,184-189,290-293,298,358-360,365
+lib/kv.ts
+  s_c7927f5b1a1d07::t_12381ffbd3f600 24-27,218-221
+pi/test_motion_trigger.py
+  s_c7927f5b1a1d07::t_669899216991d9 1-63
+pi/upload_event.py
+  s_c7927f5b1a1d07::t_ba9a4286f057fa 112-118,122-125,178,198-203
+  s_c7927f5b1a1d07::t_12381ffbd3f600 163
+  s_c7927f5b1a1d07::t_062e23a10d6df6 24,121
+pi/motion_trigger.py
+  s_c7927f5b1a1d07::t_669899216991d9 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d6c2794775b50c624567add86510f5c716e07a67",
+  "prompts": {},
+  "sessions": {
+    "s_c7927f5b1a1d07": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8068-d937-7c32-8ff0-d230125bd46d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "elsigh <elsigh@gmail.com>"
+    }
+  }
+}
