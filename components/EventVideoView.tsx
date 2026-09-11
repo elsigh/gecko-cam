@@ -58,6 +58,7 @@ export default function EventVideoView({
   const router = useRouter();
   const containerRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [playbackRate, setPlaybackRate] = useState(5);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [favorite, setFavorite] = useState(Boolean(event.favorite));
@@ -71,6 +72,14 @@ export default function EventVideoView({
   const eventAppearance = getEventAppearance(event.eventType);
   const eventSummary = getEventSummary(event);
   const eventTypeLabel = getEventTypeLabel(event.eventType);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.defaultPlaybackRate = playbackRate;
+    video.playbackRate = playbackRate;
+  }, [playbackRate, event.clipUrl, mediaError]);
 
   useEffect(() => {
     setFavorite(Boolean(event.favorite));
@@ -542,6 +551,33 @@ export default function EventVideoView({
             <ActionButtons />
           </div>
         </div>
+        {hasClip && !mediaError && (
+          <div className="mt-3 flex items-center justify-end gap-3">
+            <span className="text-xs text-gray-400">Playback speed</span>
+            <div
+              role="group"
+              aria-label="Playback speed"
+              className="inline-flex gap-1 rounded-lg border border-white/10 bg-black/20 p-1"
+            >
+              {[1, 5].map((rate) => (
+                <button
+                  key={rate}
+                  type="button"
+                  onClick={() => setPlaybackRate(rate)}
+                  aria-label={`Play at ${rate}× speed`}
+                  aria-pressed={playbackRate === rate}
+                  className={`min-h-9 min-w-11 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 ${
+                    playbackRate === rate
+                      ? "bg-emerald-400/15 text-emerald-300"
+                      : "text-gray-400 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {rate}×
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex items-center justify-center min-h-0 p-4">
@@ -603,6 +639,10 @@ export default function EventVideoView({
               controls
               autoPlay
               playsInline
+              onLoadedMetadata={(e) => {
+                e.currentTarget.playbackRate = playbackRate;
+              }}
+              onRateChange={(e) => setPlaybackRate(e.currentTarget.playbackRate)}
               onError={() => setMediaError(true)}
             >
               <track kind="captions" />
