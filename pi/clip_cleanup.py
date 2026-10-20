@@ -78,6 +78,13 @@ def metadata_interest(event: dict) -> tuple[float, str]:
         score = min(score, 0.28)
         reasons.append("bowl flicker trigger")
 
+    # Old roaming and hide labels were the bulk of the backlog. Metadata cannot
+    # see the path, so those clips stay under the keep line unless --analyze
+    # rebuilds a trace and finds a real feeding session or crossing.
+    if event_type not in {"feeding_likely", "emergence"}:
+        score = min(score, 0.62)
+        reasons.append("not a feeding or emergence label")
+
     return round(min(score, 1.0), 3), ", ".join(reasons)
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from cleanup_low_value_clips import main
 from clip_cleanup import decide_event, format_report, metadata_interest
+from event_classifier import DEFAULT_KEEP_SCORE
 
 
 def event(**overrides):
@@ -39,10 +40,10 @@ class ClipCleanupTests(unittest.TestCase):
                 triggerReason="bowl_activity",
                 triggerBowlMotionPixels=6,
             ),
-            threshold=0.58,
+            threshold=DEFAULT_KEEP_SCORE,
         )
 
-        self.assertLess(score, 0.58)
+        self.assertLess(score, DEFAULT_KEEP_SCORE)
         self.assertIn("weak feeding label", reason)
         self.assertEqual(decision.action, "delete")
 
@@ -54,25 +55,30 @@ class ClipCleanupTests(unittest.TestCase):
                 motionScore=2400,
                 triggerBowlMotionPixels=180,
             ),
-            threshold=0.58,
+            threshold=DEFAULT_KEEP_SCORE,
         )
         emergence = decide_event(
-            event(id="emerge", eventType="emergence", motionScore=2800),
-            threshold=0.58,
+            event(id="emerge", eventType="emergence", motionScore=5200),
+            threshold=DEFAULT_KEEP_SCORE,
+        )
+        moderate = decide_event(
+            event(id="peek", eventType="emergence", motionScore=2800),
+            threshold=DEFAULT_KEEP_SCORE,
         )
 
         self.assertEqual(feeding.action, "keep")
-        self.assertGreaterEqual(feeding.score, 0.58)
+        self.assertGreaterEqual(feeding.score, DEFAULT_KEEP_SCORE)
         self.assertEqual(emergence.action, "keep")
+        self.assertEqual(moderate.action, "delete")
 
     def test_favorites_and_useful_reviews_are_protected(self) -> None:
         favorite = decide_event(
             event(id="fav", eventType="unknown", motionScore=100, favorite=True),
-            threshold=0.58,
+            threshold=DEFAULT_KEEP_SCORE,
         )
         useful = decide_event(
             event(id="useful", eventType="unknown", motionScore=100, reviewVerdict="useful"),
-            threshold=0.58,
+            threshold=DEFAULT_KEEP_SCORE,
         )
 
         self.assertEqual(favorite.action, "keep")
@@ -91,7 +97,7 @@ class ClipCleanupTests(unittest.TestCase):
     def test_stored_interest_score_is_reused(self) -> None:
         decision = decide_event(
             event(id="scored", eventType="unknown", motionScore=100, interestScore=0.91),
-            threshold=0.58,
+            threshold=DEFAULT_KEEP_SCORE,
         )
 
         self.assertEqual(decision.action, "keep")
@@ -106,7 +112,7 @@ class ClipCleanupTests(unittest.TestCase):
             ]))
             output = StringIO()
             with redirect_stdout(output):
-                code = main(["--events-file", str(path), "--threshold", "0.58"])
+                code = main(["--events-file", str(path)])
 
         text = output.getvalue()
         self.assertEqual(code, 0)
@@ -119,10 +125,10 @@ class ClipCleanupTests(unittest.TestCase):
 
     def test_report_counts_match_the_decisions(self) -> None:
         decisions = [
-            decide_event(event(id="a", eventType="unknown", motionScore=100), threshold=0.58),
-            decide_event(event(id="b", favorite=True, motionScore=100), threshold=0.58),
+            decide_event(event(id="a", eventType="unknown", motionScore=100), threshold=DEFAULT_KEEP_SCORE),
+            decide_event(event(id="b", favorite=True, motionScore=100), threshold=DEFAULT_KEEP_SCORE),
         ]
-        text = format_report(decisions, threshold=0.58, apply=False)
+        text = format_report(decisions, threshold=DEFAULT_KEEP_SCORE, apply=False)
         self.assertIn("would delete: 1", text)
         self.assertIn("keep: 1", text)
         self.assertIn("protected (favorites and useful reviews): 1", text)

@@ -74,8 +74,8 @@ In `gecko_cam.py`:
 - `MOTION_THRESHOLD` — higher = less sensitive.
 - `SUSTAINED_MOTION_FRAMES` — consecutive frames above threshold before trigger (reduces light-flicker false positives).
 - `FEEDING_WINDOW_*` — more sensitive 20:00-23:00 Pacific-time profile for the usual bug-hunt window. Being inside the window no longer keeps a clip by itself.
-- `GECKO_KEEP_SCORE` — interest score from 0 to 1 required to upload a full clip. Default `0.58`. Raise it to keep fewer clips.
-- `GECKO_SUMMARY_SCORE` — score required to keep a thumbnail without video. Default `0.34`. Anything below that is discarded and not uploaded.
+- `GECKO_KEEP_SCORE` — interest score from 0 to 1 required to upload a full clip. Default `0.75`. Raise it to keep fewer clips.
+- `GECKO_SUMMARY_SCORE` — score required to keep a thumbnail without video. Default `0.60`. Anything below that is discarded and not uploaded.
 - `CLIP_RECORDING_DISABLED_*` — Pacific-time window when clip capture is disabled; currently 23:00-20:00.
 - `ANALYSIS_WARMUP_START_*` — starts motion analysis five minutes before capture so the background model is ready at 20:00. Outside 19:55-23:00, motion analysis pauses while the live HLS stream stays available.
 - `MIN_CLIP_SECONDS` — once a capture starts, keep recording until at least this many seconds have elapsed even if motion briefly pauses.
@@ -98,22 +98,23 @@ The Pi now tags each capture before upload using simple enclosure-specific ROIs:
 
 Retention behavior:
 
-- Likely feeding, a real emergence, or a long localized crossing keep the full clip when the interest score is at least `GECKO_KEEP_SCORE` (default 0.58).
-- Milder activity between `GECKO_SUMMARY_SCORE` (default 0.34) and the keep score uploads a thumbnail and summary only.
-- Lighting changes, in-place twitches, and short noisy motion score below that and are discarded. Nothing is uploaded.
+- A feeding session keeps the full clip when the gecko stays at the bowl for at least 3 seconds and the interest score reaches `GECKO_KEEP_SCORE` (default 0.75). A brief bowl visit does not.
+- A real emergence or a crossing of most of the enclosure can also clear that score. A partial crawl does not.
+- Activity between `GECKO_SUMMARY_SCORE` (default 0.60) and the keep score uploads a thumbnail and summary only.
+- Lighting changes, in-place twitches, hide entries, and ordinary crawling score below that and are discarded. Nothing is uploaded.
 - The evening window adds a small bonus for feeding and emergence. It does not override the score.
 
-The old pipeline kept every feeding-window capture, and two motion samples inside the bowl were enough to call it feeding. That is what filled the library with clips that are not worth watching.
+The old pipeline kept every feeding-window capture, and two motion samples inside the bowl were enough to call it feeding. The first scoring pass still kept a 2 second bowl visit (about 0.74) and a partial crossing (about 0.80). Both are now discarded.
 
 Tune the cutoff without a code change:
 
 ```bash
 # ~/.gecko_cam.env
-GECKO_KEEP_SCORE=0.65
-GECKO_SUMMARY_SCORE=0.40
+GECKO_KEEP_SCORE=0.82
+GECKO_SUMMARY_SCORE=0.68
 ```
 
-Then `sudo systemctl restart gecko-cam`. Higher keep score means fewer videos. If a real feeding session starts getting dropped, lower `GECKO_KEEP_SCORE` toward `0.50`.
+Then `sudo systemctl restart gecko-cam`. Higher keep score means fewer videos. If a real feeding session starts getting dropped, lower `GECKO_KEEP_SCORE` toward `0.70`.
 
 ## Clean up clips that are already saved
 
@@ -131,8 +132,8 @@ python3 pi/cleanup_low_value_clips.py
 # for old clips that were labeled feeding from a couple of bowl pixels.
 python3 pi/cleanup_low_value_clips.py --analyze
 
-# Same report with a stricter cutoff.
-python3 pi/cleanup_low_value_clips.py --threshold 0.7
+# Same report with a stricter cutoff than the default 0.75.
+python3 pi/cleanup_low_value_clips.py --threshold 0.85
 
 # After you have read the dry run, delete the DELETE rows.
 python3 pi/cleanup_low_value_clips.py --apply
@@ -144,4 +145,6 @@ You can also point it at a saved `events.json` without touching production:
 python3 pi/cleanup_low_value_clips.py --events-file ./events.json
 ```
 
-`--events-file` never deletes, even with `--apply`. Metadata scoring is conservative about old `feeding_likely` labels that have almost no bowl pixels, and it can miss a subtle feeding session that was mislabeled. Use `--analyze` before `--apply` if you want the decision to come from the pictures. Start with the dry run either way.
+`--events-file` never deletes, even with `--apply`. Metadata scoring keeps a feeding or emergence label only when the saved bowl pixels and motion score look like a real session, and it caps every other old label under the keep line. It can miss a subtle feeding session that was mislabeled, and it cannot tell an exceptional old roaming clip from a twitch. Use `--analyze` before `--apply` if you want the decision to come from the pictures. Start with the dry run either way.
+
+The script does not read the Pi's disk and it does not open the blob store itself. `GET /api/events` returns the event index (Vercel Blob object `gecko-cam-data/events.json`, reached through the deployed app). `--analyze` downloads each public `clipUrl` over HTTP into a temp file and deletes that file when the score is done. `--apply` calls `DELETE /api/events`, and the app removes those rows from `events.json` and deletes the clip and thumbnail blobs. Run it from any machine with Python 3, `requests`, and `API_SECRET`. `--analyze` also needs `ffmpeg` on that machine. `VERCEL_APP_URL` is optional and defaults to `https://gecko-cam.vercel.app`. No `BLOB_READ_WRITE_TOKEN` is required.

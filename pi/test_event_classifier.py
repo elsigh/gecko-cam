@@ -3,6 +3,7 @@ import unittest
 from contextlib import contextmanager
 
 from event_classifier import (
+    DEFAULT_KEEP_SCORE,
     DISCARD,
     KEEP_VIDEO,
     SUMMARY_ONLY,
@@ -85,7 +86,7 @@ class EventClassifierTests(unittest.TestCase):
         )
 
         self.assertNotEqual(classification.retention_category, KEEP_VIDEO)
-        self.assertLess(classification.interest_score, 0.58)
+        self.assertLess(classification.interest_score, DEFAULT_KEEP_SCORE)
         self.assertEqual(classification.retention_category, DISCARD)
 
     def test_two_bowl_points_are_not_feeding(self) -> None:
@@ -104,7 +105,7 @@ class EventClassifierTests(unittest.TestCase):
         self.assertEqual(classification.retention_category, DISCARD)
 
     def test_sustained_bowl_activity_keeps_a_feeding_clip(self) -> None:
-        points = series((110, 180), (140, 200), 21, motion_score=1600)
+        points = series((110, 180), (140, 200), 36, motion_score=1600)
 
         classification = classify_event(
             points,
@@ -114,8 +115,21 @@ class EventClassifierTests(unittest.TestCase):
 
         self.assertEqual(classification.event_type, "feeding_likely")
         self.assertEqual(classification.retention_category, KEEP_VIDEO)
-        self.assertGreaterEqual(classification.interest_score, 0.58)
+        self.assertGreaterEqual(classification.interest_score, DEFAULT_KEEP_SCORE)
         self.assertEqual(classification.as_payload()["interestScore"], round(classification.interest_score, 3))
+
+    def test_brief_bowl_visit_is_not_a_feeding_session(self) -> None:
+        points = series((110, 180), (140, 200), 21, motion_score=1600)
+
+        classification = classify_event(
+            points,
+            feeding_window_active=True,
+            peak_motion_score=1600,
+        )
+
+        self.assertNotEqual(classification.event_type, "feeding_likely")
+        self.assertEqual(classification.retention_category, DISCARD)
+        self.assertLess(classification.interest_score, 0.40)
 
     def test_lighting_change_is_discarded_even_with_a_high_score(self) -> None:
         points = [
@@ -174,6 +188,20 @@ class EventClassifierTests(unittest.TestCase):
         self.assertEqual(classification.event_type, "roaming")
         self.assertEqual(classification.summary, "Sustained movement across the enclosure")
         self.assertEqual(classification.retention_category, KEEP_VIDEO)
+        self.assertGreaterEqual(classification.interest_score, DEFAULT_KEEP_SCORE)
+
+    def test_partial_crossing_is_discarded(self) -> None:
+        points = series((40, 20), (180, 20), 12)
+
+        classification = classify_event(
+            points,
+            feeding_window_active=True,
+            peak_motion_score=800,
+        )
+
+        self.assertNotEqual(classification.retention_category, KEEP_VIDEO)
+        self.assertEqual(classification.retention_category, DISCARD)
+        self.assertLess(classification.interest_score, 0.40)
 
     def test_short_hide_entry_does_not_keep_video(self) -> None:
         points = series((200, 140), (200, 60), 10)
@@ -185,7 +213,8 @@ class EventClassifierTests(unittest.TestCase):
         )
 
         self.assertEqual(classification.event_type, "hide_entry_dry")
-        self.assertNotEqual(classification.retention_category, KEEP_VIDEO)
+        self.assertEqual(classification.retention_category, DISCARD)
+        self.assertLess(classification.interest_score, 0.40)
 
     def test_empty_trace_is_discarded_inside_the_feeding_window(self) -> None:
         classification = classify_event(
@@ -197,7 +226,7 @@ class EventClassifierTests(unittest.TestCase):
         self.assertEqual(classification.retention_category, DISCARD)
 
     def test_keep_score_env_is_the_upload_cutoff(self) -> None:
-        points = series((110, 180), (140, 200), 21, motion_score=1600)
+        points = series((110, 180), (140, 200), 36, motion_score=1600)
 
         with env(GECKO_KEEP_SCORE="0.95"):
             classification = classify_event(
@@ -206,7 +235,7 @@ class EventClassifierTests(unittest.TestCase):
                 peak_motion_score=1600,
             )
 
-        self.assertGreaterEqual(classification.interest_score, 0.58)
+        self.assertGreaterEqual(classification.interest_score, DEFAULT_KEEP_SCORE)
         self.assertLess(classification.interest_score, 0.95)
         self.assertEqual(classification.retention_category, SUMMARY_ONLY)
 
@@ -214,7 +243,7 @@ class EventClassifierTests(unittest.TestCase):
         width, height = 80, 60
         dark = bytes([10]) * (width * height)
         frames = [dark]
-        for index in range(16):
+        for index in range(36):
             frame = bytearray(dark)
             origin_x = 28 + (index % 3)
             origin_y = 46

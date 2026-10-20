@@ -8,7 +8,7 @@ Dry run is the default. This script never deletes anything unless you pass
 Examples:
   python3 pi/cleanup_low_value_clips.py
   python3 pi/cleanup_low_value_clips.py --analyze
-  GECKO_KEEP_SCORE=0.7 python3 pi/cleanup_low_value_clips.py
+  GECKO_KEEP_SCORE=0.85 python3 pi/cleanup_low_value_clips.py
   python3 pi/cleanup_low_value_clips.py --apply
 
 Reads VERCEL_APP_URL and API_SECRET from the environment or ~/.gecko_cam.env.
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
         "--threshold",
         type=float,
         default=None,
-        help="Keep events at or above this 0..1 score. Defaults to GECKO_KEEP_SCORE or 0.58.",
+        help="Keep events at or above this 0..1 score. Defaults to GECKO_KEEP_SCORE or 0.75.",
     )
     parser.add_argument(
         "--events-file",

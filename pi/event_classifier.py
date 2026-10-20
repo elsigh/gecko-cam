@@ -58,16 +58,18 @@ DISCARD = "discard"
 # A clip is uploaded only at/above the keep score. Between the summary score
 # and the keep score we save a thumbnail without video. Below the summary
 # score nothing is uploaded.
-DEFAULT_KEEP_SCORE = 0.58
-DEFAULT_SUMMARY_SCORE = 0.34
+# 0.75 keeps a feeding session or a long localized crossing, and drops the
+# brief bowl visits and partial crossings that cleared 0.58.
+DEFAULT_KEEP_SCORE = 0.75
+DEFAULT_SUMMARY_SCORE = 0.60
 
 MAX_USEFUL_COVERAGE = 0.07
 MIN_POINT_MOTION = 80
 TELEPORT_PX = 90
-FEEDING_MIN_DWELL_SECONDS = 1.6
-FEEDING_MIN_POINTS = 8
-FEEDING_MIN_FRACTION = 0.35
-EXCEPTIONAL_MIN_NET_PX = 110
+FEEDING_MIN_DWELL_SECONDS = 3.0
+FEEDING_MIN_POINTS = 12
+FEEDING_MIN_FRACTION = 0.50
+EXCEPTIONAL_MIN_NET_PX = 200
 
 
 def zone_for_point(x: float, y: float) -> str:
@@ -393,15 +395,18 @@ def _feeding_score(
     if bowl_coverages and float(median(bowl_coverages)) > 0.055:
         return None
 
-    score = 0.4 + min(0.28, bowl_dwell / 10)
-    if bowl_points / count >= 0.55:
-        score += 0.08
+    # A 3s bowl session during the feeding window clears the default keep
+    # score. A longer stay, a trip out of a hide, or a strong peak adds to it.
+    # Anything shorter never reaches this function.
+    score = 0.66 + min(0.18, max(0.0, bowl_dwell - FEEDING_MIN_DWELL_SECONDS) / 12)
+    if bowl_points / count >= 0.70:
+        score += 0.04
     if feeding_window_active:
-        score += 0.06
-    if float(features["peak"]) >= 2000:
         score += 0.08
+    if float(features["peak"]) >= 2500:
+        score += 0.04
     if start_hide is not None:
-        score += 0.06
+        score += 0.04
     return min(score, 1.0)
 
 
@@ -414,11 +419,11 @@ def _is_emergence(
         return False
     if features["last_zone"] == start_hide:
         return False
-    if float(features["net"]) < 55 or float(features["efficiency"]) < 0.28:
+    if float(features["net"]) < 100 or float(features["efficiency"]) < 0.45:
         return False
-    if float(features["span"]) < 0.8 or int(features["count"]) < 6:
+    if float(features["span"]) < 1.5 or int(features["count"]) < 8:
         return False
-    if float(features["median_coverage"]) > 0.05:
+    if float(features["median_coverage"]) > 0.045:
         return False
 
     outside = [
@@ -426,33 +431,35 @@ def _is_emergence(
         for point in points
         if point.zone != start_hide and point.timestamp >= points[0].timestamp + 0.4
     ]
-    return len(outside) >= 3
+    return len(outside) >= 4
 
 
 def _emergence_score(features: dict[str, float | str | None], feeding_window_active: bool) -> float:
-    score = 0.5 + min(0.28, float(features["net"]) / 450)
+    net = float(features["net"])
+    score = 0.62 + min(0.22, max(0.0, net - 100) / 350)
     if feeding_window_active:
-        score += 0.04
-    if float(features["efficiency"]) >= 0.5:
         score += 0.06
+    if float(features["efficiency"]) >= 0.55:
+        score += 0.04
     return min(score, 1.0)
 
 
 def _is_exceptional(features: dict[str, float | str | None]) -> bool:
     return (
         float(features["net"]) >= EXCEPTIONAL_MIN_NET_PX
-        and float(features["efficiency"]) >= 0.42
-        and float(features["span"]) >= 1.0
-        and float(features["median_coverage"]) <= 0.05
-        and int(features["count"]) >= 6
-        and float(features["peak"]) >= 400
+        and float(features["efficiency"]) >= 0.60
+        and float(features["span"]) >= 2.0
+        and float(features["median_coverage"]) <= 0.04
+        and int(features["count"]) >= 12
+        and float(features["peak"]) >= 1500
     )
 
 
 def _exceptional_score(features: dict[str, float | str | None]) -> float:
-    score = 0.52 + min(0.3, float(features["net"]) / 500)
-    if float(features["peak"]) >= 2500:
-        score += 0.06
+    net = float(features["net"])
+    score = 0.72 + min(0.20, max(0.0, net - EXCEPTIONAL_MIN_NET_PX) / 400)
+    if float(features["peak"]) >= 3500:
+        score += 0.04
     return min(score, 1.0)
 
 
@@ -466,7 +473,7 @@ def _is_hide_entry(features: dict[str, float | str | None], zone: str) -> bool:
 
 
 def _hide_entry_score(features: dict[str, float | str | None]) -> float:
-    return min(0.46, 0.2 + min(0.16, float(features["net"]) / 500))
+    return min(0.28, 0.10 + min(0.10, float(features["net"]) / 800))
 
 
 def _is_trivial(features: dict[str, float | str | None]) -> bool:
@@ -480,10 +487,10 @@ def _is_trivial(features: dict[str, float | str | None]) -> bool:
 
 
 def _routine_score(features: dict[str, float | str | None]) -> float:
-    score = 0.16 + min(0.14, float(features["net"]) / 600)
-    if float(features["span"]) >= 2 and float(features["net"]) >= 35:
-        score += 0.06
-    return min(score, 0.4)
+    score = 0.12 + min(0.10, float(features["net"]) / 800)
+    if float(features["span"]) >= 3 and float(features["net"]) >= 60:
+        score += 0.04
+    return min(score, 0.32)
 
 
 def _start_hide(points: list[MotionTracePoint]) -> str | None:
