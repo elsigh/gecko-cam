@@ -284,6 +284,7 @@ export default function EventCard({
             {event.duration ? formatDuration(event.duration) : ""}
             {event.duration && event.motionScore ? " · " : ""}
             {event.motionScore ? `score ${Math.round(event.motionScore)}` : ""}
+            {typeof event.interestScore === "number" ? `${event.motionScore ? " · " : ""}interest ${event.interestScore.toFixed(2)}` : ""}
           </p>
         </div>
 

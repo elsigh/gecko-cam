@@ -22,6 +22,7 @@ CLIP_FPS = 30  # must match gecko_cam.py FPS
 
 import requests
 from clip_timing import choose_thumbnail_time
+from event_classifier import DISCARD, upload_plan
 
 log = logging.getLogger("upload_event")
 
@@ -162,13 +163,24 @@ def upload_event(
     motion_score: float,
     classification: dict[str, str | float | int | None] | None = None,
 ) -> None:
+    classification = classification or {}
+    plan = upload_plan(str(classification.get("retentionCategory") or ""))
+    if plan == DISCARD:
+        log.info(
+            "Discarding %s (interest=%s, %s)",
+            clip_path,
+            classification.get("interestScore"),
+            classification.get("behaviorSummary") or classification.get("eventType"),
+        )
+        Path(clip_path).unlink(missing_ok=True)
+        return
+
     if not VERCEL_APP_URL:
         raise RuntimeError("VERCEL_APP_URL not set")
     if not API_SECRET:
         raise RuntimeError("API_SECRET not set")
 
     thumb_path: str | None = None
-    classification = classification or {}
     try:
         # CircularOutput writes raw H264 — wrap in MP4 container for browser playback
         log.info("Converting raw H264 → MP4 container: %s", clip_path)
