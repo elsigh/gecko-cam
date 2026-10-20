@@ -26,6 +26,7 @@ export interface GeckoEvent {
   sourceZone?: GeckoEventZone | null;
   targetZone?: GeckoEventZone | null;
   retentionCategory?: GeckoEventRetentionCategory;
+  interestScore?: number;
   triggerReason?: GeckoEventTriggerReason;
   triggerBowlMotionPixels?: number;
   triggeredAt?: number;

@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
     sourceZone,
     targetZone,
     retentionCategory,
+    interestScore,
     triggerReason,
     triggerBowlMotionPixels,
     triggeredAt,
@@ -59,6 +60,9 @@ export async function POST(request: NextRequest) {
   }
 
   const rotation = await getRotation();
+  const normalizedInterest = typeof interestScore === "number" && Number.isFinite(interestScore)
+    ? interestScore
+    : undefined;
 
   const event: GeckoEvent = {
     id,
@@ -73,6 +77,7 @@ export async function POST(request: NextRequest) {
     sourceZone: sourceZone ?? null,
     targetZone: targetZone ?? null,
     retentionCategory,
+    interestScore: normalizedInterest,
     triggerReason,
     triggerBowlMotionPixels: triggerBowlMotionPixels === undefined
       ? undefined
