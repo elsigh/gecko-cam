@@ -120,7 +120,7 @@ Then `sudo systemctl restart gecko-cam`. Higher keep score means fewer videos. I
 
 `pi/cleanup_low_value_clips.py` re-scores the backlog and prints what it would delete. It does not delete anything unless you pass `--apply`. Favorites and clips marked useful are kept.
 
-From a machine that has `API_SECRET` and `VERCEL_APP_URL` (the Pi's `~/.gecko_cam.env` is picked up automatically):
+From the Pi, or from any other machine that has `API_SECRET` (the Pi's `~/.gecko_cam.env` is picked up automatically when the script runs there):
 
 ```bash
 cd ~/gecko-cam
