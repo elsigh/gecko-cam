@@ -109,7 +109,7 @@ The Pi now tags each capture before upload using simple enclosure-specific ROIs:
 Retention behavior:
 
 - A feeding session keeps the full clip when the gecko stays at the bowl for at least 3 seconds and the interest score reaches `GECKO_KEEP_SCORE` (default 0.75). A brief bowl visit does not.
-- A quick strike at the bowl (a bug catch: gecko-sized motion, under a second, staying at the bowl) also keeps the clip. Bowl-pixel flicker does not, because those frames are too small to become a trace point.
+- A quick strike at the bowl also keeps the clip. That includes a lunge from the moist-hide mouth onto the bowl, which is what the 16 Nov bug catch looked like: the body's motion stays at the hide entrance and only the head reaches the bowl. A long crawl across the open floor does not qualify. Bowl-pixel flicker does not either, because those frames are too small to become a trace point.
 - A real emergence or a crossing of most of the enclosure can also clear that score. A partial crawl does not.
 - Activity between `GECKO_SUMMARY_SCORE` (default 0.60) and the keep score uploads a thumbnail and summary only.
 - Lighting changes, in-place twitches, hide entries, and ordinary crawling score below that and are discarded. Nothing is uploaded.

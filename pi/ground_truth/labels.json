@@ -49,7 +49,7 @@
       "pi_label": "feeding_likely",
       "contains_moment": "bug_catch",
       "assume_feeding": false,
-      "note": "Covers 21:05:50, when she ate a bug. This clip must be kept. The 21:04:00 head peek is earlier than approx_start, so it is not in this file either."
+      "note": "Covers 21:05:50, when she ate a bug. This clip must be kept. The saved file is about 180s, not 120s, so that instant is near 91s in the picture: she lunges from the moist-hide mouth and her head reaches the bowl. The 21:04:00 head peek is earlier than the old 120s estimate of approx_start."
     }
   ]
 }

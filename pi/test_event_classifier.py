@@ -118,6 +118,48 @@ class EventClassifierTests(unittest.TestCase):
         self.assertGreaterEqual(classification.interest_score, DEFAULT_KEEP_SCORE)
         self.assertEqual(classification.as_payload()["interestScore"], round(classification.interest_score, 3))
 
+    def test_hide_mouth_lunge_onto_the_bowl_is_kept(self) -> None:
+        # Shape of the 16 Nov bug catch: the body bursts at the moist-hide
+        # mouth, then the head touches the bowl. Scores stay small.
+        points = [
+            point(86.25, 148, 132, motion_score=528, zone="rock_hide"),
+            point(90.88, 144, 139, motion_score=1408, zone="rock_hide"),
+            point(91.00, 142, 143, motion_score=912, zone="rock_hide"),
+            point(91.12, 145, 140, motion_score=832, zone="rock_hide"),
+            point(91.25, 145, 147, motion_score=528, zone="rock_hide"),
+            point(91.88, 145, 156, motion_score=208, zone="bowl"),
+            point(100.0, 145, 170, motion_score=176, zone="bowl"),
+        ]
+
+        classification = classify_event(
+            points,
+            feeding_window_active=True,
+            peak_motion_score=1408,
+        )
+
+        self.assertEqual(classification.summary, "Quick strike at the bowl")
+        self.assertEqual(classification.retention_category, KEEP_VIDEO)
+        self.assertGreaterEqual(classification.interest_score, DEFAULT_KEEP_SCORE)
+
+    def test_open_floor_crawl_is_not_a_strike(self) -> None:
+        points = []
+        for index in range(40):
+            x = 220 if index % 2 == 0 else 180
+            y = 170 + (index % 5) * 6
+            points.append(point(index * 0.5, x, y, motion_score=3200, zone="open"))
+        points.append(point(8.0, 145, 140, motion_score=500, zone="rock_hide"))
+        points.append(point(8.4, 156, 164, motion_score=400, zone="bowl"))
+
+        classification = classify_event(
+            points,
+            feeding_window_active=True,
+            peak_motion_score=3200,
+        )
+
+        self.assertNotEqual(classification.summary, "Quick strike at the bowl")
+        self.assertNotEqual(classification.summary, "Likely feeding at bowl")
+        self.assertLess(classification.interest_score, DEFAULT_KEEP_SCORE)
+
     def test_quick_bowl_strike_is_kept(self) -> None:
         points = series((120, 190), (128, 196), 6, step=0.1, motion_score=1800)
 

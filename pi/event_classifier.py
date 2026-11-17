@@ -171,11 +171,11 @@ def classify_event(
     # long enough to be a feeding session, and the net movement can be tiny
     # because she strikes and stays. Bowl-pixel flicker never reaches this:
     # those frames are smaller than a trace point.
-    if _is_bowl_strike(tracked):
+    if _is_bowl_strike(tracked) or _is_hide_mouth_strike(tracked):
         return _result(
             event_type="feeding_likely",
             summary="Quick strike at the bowl",
-            source_zone=start_hide,
+            source_zone=start_hide or "rock_hide",
             target_zone="bowl",
             score=0.82,
             wants_video=True,
@@ -451,6 +451,54 @@ def _is_bowl_strike(points: list[MotionTracePoint]) -> bool:
     if bowl_hits < 4 or bowl_hits / len(hot) < 0.75:
         return False
     if float(median(point.coverage_fraction for point in hot)) > 0.035:
+        return False
+    return True
+
+
+def _is_hide_mouth_strike(points: list[MotionTracePoint]) -> bool:
+    """Lunge from the moist-hide mouth onto the bowl.
+
+    On 16 Nov 2026 the bug catch was a half-second burst at the rock-hide
+    entrance (the body), then the head touched the bowl. The centroid never
+    sat inside the bowl rect, and the scores were far below a floor crawl.
+    """
+    if len(points) < 4:
+        return False
+
+    peak_point = max(points, key=lambda point: point.motion_score)
+    peak = peak_point.motion_score
+    if peak < 800 or peak_point.coverage_fraction > 0.03 or peak_point.zone != "rock_hide":
+        return False
+
+    cluster = [
+        point
+        for point in points
+        if abs(point.timestamp - peak_point.timestamp) <= 0.6
+        and point.motion_score >= peak * 0.35
+        and point.coverage_fraction <= 0.03
+    ]
+    if len(cluster) < 3:
+        return False
+    cluster.sort(key=lambda point: point.timestamp)
+    if cluster[-1].timestamp - cluster[0].timestamp > 1.0:
+        return False
+    hide_hits = sum(point.zone == "rock_hide" for point in cluster)
+    if hide_hits / len(cluster) < 0.6:
+        return False
+
+    reached_bowl = any(
+        point.zone == "bowl" and 0 <= point.timestamp - cluster[-1].timestamp <= 1.5
+        for point in points
+    )
+    if not reached_bowl:
+        return False
+
+    outside = [
+        point.motion_score
+        for point in points
+        if point.timestamp < cluster[0].timestamp - 4 or point.timestamp > cluster[-1].timestamp + 4
+    ]
+    if outside and max(outside) >= peak * 0.7:
         return False
     return True
 
