@@ -167,6 +167,22 @@ def classify_event(
             summary_score=summary,
         )
 
+    # A bug catch is a short, gecko-sized burst at the bowl. It does not last
+    # long enough to be a feeding session, and the net movement can be tiny
+    # because she strikes and stays. Bowl-pixel flicker never reaches this:
+    # those frames are smaller than a trace point.
+    if _is_bowl_strike(tracked):
+        return _result(
+            event_type="feeding_likely",
+            summary="Quick strike at the bowl",
+            source_zone=start_hide,
+            target_zone="bowl",
+            score=0.82,
+            wants_video=True,
+            keep_score=keep,
+            summary_score=summary,
+        )
+
     if _is_emergence(tracked, features, start_hide):
         return _result(
             event_type="emergence",
@@ -408,6 +424,35 @@ def _feeding_score(
     if start_hide is not None:
         score += 0.04
     return min(score, 1.0)
+
+
+def _is_bowl_strike(points: list[MotionTracePoint]) -> bool:
+    if len(points) < 4:
+        return False
+
+    peak = max(point.motion_score for point in points)
+    if peak < 500:
+        return False
+
+    hot_floor = max(500.0, peak * 0.6)
+    hot = [
+        point
+        for point in points
+        if point.motion_score >= hot_floor and point.coverage_fraction <= 0.04
+    ]
+    if len(hot) < 4:
+        return False
+
+    hot.sort(key=lambda point: point.timestamp)
+    if hot[-1].timestamp - hot[0].timestamp > 0.8:
+        return False
+
+    bowl_hits = sum(point.zone == "bowl" for point in hot)
+    if bowl_hits < 4 or bowl_hits / len(hot) < 0.75:
+        return False
+    if float(median(point.coverage_fraction for point in hot)) > 0.035:
+        return False
+    return True
 
 
 def _is_emergence(

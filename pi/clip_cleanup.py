@@ -140,8 +140,9 @@ def event_in_feeding_window(timestamp_ms: float) -> bool:
 
 
 def analyze_video(path: str, *, feeding_window_active: bool) -> tuple[float, str]:
-    frames = ffmpeg_gray_frames(path)
-    points, peak = trace_from_gray_frames(frames, width=160, height=120, fps=2, step=2)
+    # 8 fps keeps a sub-second bowl strike. 2 fps can skip it entirely.
+    frames = ffmpeg_gray_frames(path, fps=8)
+    points, peak = trace_from_gray_frames(frames, width=160, height=120, fps=8, step=2)
     classification = classify_event(
         points,
         feeding_window_active=feeding_window_active,

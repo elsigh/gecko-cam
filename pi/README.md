@@ -61,6 +61,16 @@ git pull
 sudo systemctl restart gecko-cam
 ```
 
+This branch does not add packages or change `gecko-cam.service`. `upload_event.py` still loads `~/.gecko_cam.env` when the daemon starts, and the new score cutoffs have defaults, so a pull and restart is enough. Optional knobs, only if you want to override the defaults:
+
+```bash
+# ~/.gecko_cam.env
+GECKO_KEEP_SCORE=0.75
+GECKO_SUMMARY_SCORE=0.60
+```
+
+Leave them unset to use those defaults. No `pip install`, no `daemon-reload`, and no edit to the systemd unit.
+
 ## Config locations
 
 - **Env**: `~/.gecko_cam.env` — `VERCEL_APP_URL`, `API_SECRET` (and optional vars used by `upload_event.py`).
@@ -99,6 +109,7 @@ The Pi now tags each capture before upload using simple enclosure-specific ROIs:
 Retention behavior:
 
 - A feeding session keeps the full clip when the gecko stays at the bowl for at least 3 seconds and the interest score reaches `GECKO_KEEP_SCORE` (default 0.75). A brief bowl visit does not.
+- A quick strike at the bowl (a bug catch: gecko-sized motion, under a second, staying at the bowl) also keeps the clip. Bowl-pixel flicker does not, because those frames are too small to become a trace point.
 - A real emergence or a crossing of most of the enclosure can also clear that score. A partial crawl does not.
 - Activity between `GECKO_SUMMARY_SCORE` (default 0.60) and the keep score uploads a thumbnail and summary only.
 - Lighting changes, in-place twitches, hide entries, and ordinary crawling score below that and are discarded. Nothing is uploaded.

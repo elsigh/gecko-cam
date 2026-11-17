@@ -118,6 +118,35 @@ class EventClassifierTests(unittest.TestCase):
         self.assertGreaterEqual(classification.interest_score, DEFAULT_KEEP_SCORE)
         self.assertEqual(classification.as_payload()["interestScore"], round(classification.interest_score, 3))
 
+    def test_quick_bowl_strike_is_kept(self) -> None:
+        points = series((120, 190), (128, 196), 6, step=0.1, motion_score=1800)
+
+        classification = classify_event(
+            points,
+            feeding_window_active=True,
+            peak_motion_score=1800,
+        )
+
+        self.assertEqual(classification.summary, "Quick strike at the bowl")
+        self.assertEqual(classification.retention_category, KEEP_VIDEO)
+        self.assertGreaterEqual(classification.interest_score, DEFAULT_KEEP_SCORE)
+
+    def test_head_only_peek_is_not_feeding_and_is_not_kept(self) -> None:
+        # Body stays in the rock hide. A few pixels of the head cross the edge.
+        points = series((100, 140), (108, 146), 8, step=0.12, motion_score=420)
+        points.extend(series((112, 150), (118, 154), 3, t0=1.0, step=0.1, motion_score=380))
+
+        classification = classify_event(
+            points,
+            feeding_window_active=True,
+            peak_motion_score=420,
+        )
+
+        self.assertNotEqual(classification.event_type, "feeding_likely")
+        self.assertNotEqual(classification.event_type, "emergence")
+        self.assertEqual(classification.retention_category, DISCARD)
+        self.assertLess(classification.interest_score, DEFAULT_KEEP_SCORE)
+
     def test_brief_bowl_visit_is_not_a_feeding_session(self) -> None:
         points = series((110, 180), (140, 200), 21, motion_score=1600)
 
