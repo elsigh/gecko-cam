@@ -1,0 +1,55 @@
+{
+  "timezone": "America/Los_Angeles",
+  "date": "2026-11-16",
+  "notes": "Owner labels. Append moments or clips; do not rewrite old notes. The Pi that recorded these clips was on main 2e64bdb, whose classifier called almost any bowl motion feeding_likely. That pi_label is not ground truth.",
+  "moments": [
+    {
+      "at": "21:04:00",
+      "label": "head_emergence_moist_hide",
+      "must_keep": false,
+      "note": "Only her head came out of the moist hide rock. Her body stayed in the hide. This is not the end of a feeding session. Whether a head-only peek is worth keeping is a judgment call, not a required keep."
+    },
+    {
+      "at": "21:05:50",
+      "label": "bug_catch",
+      "must_keep": true,
+      "note": "She ate a bug. The clip that contains this instant must be kept."
+    }
+  ],
+  "clips": [
+    {
+      "event_id": "7fca1d30-0ca7-4f44-9aa3-4d931072501f",
+      "saved_at": "21:02:23",
+      "duration_seconds": 120,
+      "approx_start": "21:00:23",
+      "approx_end": "21:02:23",
+      "pi_label": "feeding_likely",
+      "contains_moment": null,
+      "assume_feeding": false,
+      "note": "Recorded during 21:00-21:02. Do not treat the old feeding_likely label as truth, and do not tune the classifier to call this window feeding. Score the picture."
+    },
+    {
+      "event_id": "8146d3f2-ccd7-44b3-8eba-6c83fb3a25c0",
+      "saved_at": "21:03:38",
+      "duration_seconds": 60,
+      "approx_start": "21:02:38",
+      "approx_end": "21:03:38",
+      "pi_label": "unknown",
+      "contains_moment": null,
+      "idle_seconds": 59,
+      "assume_feeding": false,
+      "note": "Ends about 22 seconds before the 21:04:00 head peek, so this file is not that peek. The Pi called 59s of it idle. Do not relabel the window as feeding."
+    },
+    {
+      "event_id": "1d7d0e6a-71c2-4d0b-94f9-1fa6211f5717",
+      "saved_at": "21:07:18",
+      "duration_seconds": 120,
+      "approx_start": "21:05:18",
+      "approx_end": "21:07:18",
+      "pi_label": "feeding_likely",
+      "contains_moment": "bug_catch",
+      "assume_feeding": false,
+      "note": "Covers 21:05:50, when she ate a bug. This clip must be kept. The saved file is about 180s, not 120s, so that instant is near 91s in the picture: she lunges from the moist-hide mouth and her head reaches the bowl. The 21:04:00 head peek is earlier than the old 120s estimate of approx_start."
+    }
+  ]
+}

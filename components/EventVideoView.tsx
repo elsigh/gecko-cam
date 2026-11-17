@@ -20,6 +20,7 @@ import {
   getEventTypeLabel,
 } from "@/lib/event-behavior";
 import { formatEventCompactTime, formatEventTimestamp } from "@/lib/event-time";
+import ClipStage from "@/components/ClipStage";
 import { rotationStyle } from "@/lib/rotation";
 import type { GeckoEvent } from "@/lib/types";
 import {
@@ -29,6 +30,12 @@ import {
   eventMediaTransitionName,
   eventTitleTransitionName,
 } from "@/lib/view-transitions";
+
+function formatClock(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
 
 interface EventNavigationTarget {
   id: string;
@@ -66,6 +73,9 @@ export default function EventVideoView({
   const [reviewedUseful, setReviewedUseful] = useState(event.reviewVerdict === "useful");
   const [reviewing, setReviewing] = useState<"useful" | "not_useful" | null>(null);
   const [mediaError, setMediaError] = useState(false);
+  const [playing, setPlaying] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [durationSec, setDurationSec] = useState(event.duration || 0);
   const mediaTransitionName = eventMediaTransitionName(event.id);
   const titleTransitionName = eventTitleTransitionName(event.id);
   const hasClip = eventHasClip(event);
@@ -87,7 +97,10 @@ export default function EventVideoView({
     setReviewedUseful(event.reviewVerdict === "useful");
     setReviewing(null);
     setMediaError(false);
-  }, [event.favorite, event.id, event.reviewVerdict]);
+    setPlaying(true);
+    setCurrentTime(0);
+    setDurationSec(event.duration || 0);
+  }, [event.duration, event.favorite, event.id, event.reviewVerdict]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -106,6 +119,18 @@ export default function EventVideoView({
       }
 
       if (deleting || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+      if (e.key === " " && hasClip && !mediaError) {
+        e.preventDefault();
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.paused) {
+          void video.play();
+        } else {
+          video.pause();
+        }
+        return;
+      }
 
       const newer = navigation?.newer;
       const older = navigation?.older;
@@ -128,7 +153,7 @@ export default function EventVideoView({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleting, navigation, router]);
+  }, [deleting, hasClip, mediaError, navigation, router]);
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -552,7 +577,12 @@ export default function EventVideoView({
           </div>
         </div>
         {hasClip && !mediaError && (
-          <div className="mt-3 flex items-center justify-end gap-3">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-gray-500">
+              {typeof event.interestScore === "number" ? `Interest ${event.interestScore.toFixed(2)}. ` : ""}
+              Scroll or pinch to zoom. Drag to pan.
+            </p>
+            <div className="flex items-center gap-3">
             <span className="text-xs text-gray-400">Playback speed</span>
             <div
               role="group"
@@ -576,11 +606,12 @@ export default function EventVideoView({
                 </button>
               ))}
             </div>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="flex-1 flex items-center justify-center min-h-0 p-4">
+      <div className="flex min-h-0 flex-1 flex-col p-4">
         <ViewTransition
           name={mediaTransitionName}
           share="vt-event-media-share"
@@ -630,25 +661,71 @@ export default function EventVideoView({
               </div>
             </div>
           ) : (
-            <video
-              ref={videoRef}
-              src={event.clipUrl ?? undefined}
-              poster={event.thumbnailUrl}
-              className="max-w-full max-h-full object-contain transition-transform duration-300"
-              style={rotationStyle(event.rotation ?? 0)}
-              controls
-              autoPlay
-              playsInline
-              onLoadedMetadata={(e) => {
-                e.currentTarget.playbackRate = playbackRate;
-              }}
-              onRateChange={(e) => setPlaybackRate(e.currentTarget.playbackRate)}
-              onError={() => setMediaError(true)}
-            >
-              <track kind="captions" />
-            </video>
+            <ClipStage rotation={event.rotation ?? 0} resetKey={event.id} mediaRef={videoRef}>
+              {(media) => (
+                <video
+                  ref={media.ref}
+                  style={media.style}
+                  className={media.className}
+                  draggable={media.draggable}
+                  src={event.clipUrl ?? undefined}
+                  poster={event.thumbnailUrl}
+                  autoPlay
+                  playsInline
+                  onLoadedMetadata={(e) => {
+                    e.currentTarget.playbackRate = playbackRate;
+                    setDurationSec(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : event.duration);
+                  }}
+                  onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                  onPlay={() => setPlaying(true)}
+                  onPause={() => setPlaying(false)}
+                  onRateChange={(e) => setPlaybackRate(e.currentTarget.playbackRate)}
+                  onError={() => setMediaError(true)}
+                >
+                  <track kind="captions" />
+                </video>
+              )}
+            </ClipStage>
           )}
         </ViewTransition>
+        {hasClip && !mediaError && (
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const video = videoRef.current;
+                if (!video) return;
+                if (video.paused) {
+                  void video.play();
+                } else {
+                  video.pause();
+                }
+              }}
+              className="min-h-11 rounded-md border border-white/10 px-3 text-sm text-gray-200 hover:bg-white/10 hover:text-white"
+              aria-label={playing ? "Pause clip" : "Play clip"}
+            >
+              {playing ? "Pause" : "Play"}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={durationSec || 0}
+              step={0.1}
+              value={Math.min(currentTime, durationSec || 0)}
+              aria-label="Seek"
+              onChange={(changeEvent) => {
+                const next = Number(changeEvent.target.value);
+                const video = videoRef.current;
+                if (video) video.currentTime = next;
+                setCurrentTime(next);
+              }}
+              className="h-2 min-w-0 flex-1 accent-emerald-400"
+            />
+            <span className="shrink-0 text-xs tabular-nums text-gray-400">
+              {formatClock(currentTime)} / {formatClock(durationSec)}
+            </span>
+          </div>
+        )}
       </div>
     </section>
   );

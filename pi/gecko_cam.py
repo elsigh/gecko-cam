@@ -12,7 +12,9 @@ seconds of inactivity.
 
 Clip capture is focused on the 20:00-23:00 Pacific feeding window. The live HLS
 stream remains available all day, while motion analysis only starts shortly
-before the feeding window so the background model is ready at 20:00.
+before the feeding window so the background model is ready at 20:00. A capture
+is uploaded only when its interest score clears GECKO_KEEP_SCORE; lighting
+changes, twitches, and routine crawling are discarded or saved as a thumbnail.
 
 Filters out heat-lamp thermostat false positives via two guards:
   1. Brightness-delta: skips any frame where mean Y channel deviates from
@@ -538,6 +540,7 @@ def run() -> None:
                         eventType=classification.event_type,
                         summary=classification.summary,
                         retentionCategory=classification.retention_category,
+                        interestScore=round(classification.interest_score, 3),
                         triggerReason=capture_trigger_reason,
                         triggerBowlMotionPixels=capture_trigger_bowl_motion_pixels,
                         triggeredAt=capture_triggered_at_ms,
